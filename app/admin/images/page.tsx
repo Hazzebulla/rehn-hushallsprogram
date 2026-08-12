@@ -1,0 +1,157 @@
+import Image from "next/image";
+import { prisma } from "../../../lib/prisma";
+import { extractHusstatusImages, type HusstatusImage } from "../../../lib/husstatus-images";
+import AdminSidebar from "../admin-sidebar";
+import { rvmSections } from "../husstatus-form/spec";
+
+export const dynamic = "force-dynamic";
+
+async function getImages(): Promise<{ databaseOnline: boolean; images: HusstatusImage[] }> {
+  try {
+    const submissions = await prisma.formSubmission.findMany({
+      where: {
+        companyId: "org_rehn_vvs",
+        OR: [
+          { version: { templateId: "tpl_rvm_husstatus_24" } },
+          { inspection: { type: "RVM_HUSSTATUS_24" } },
+        ],
+      },
+      include: {
+        answers: true,
+        inspection: {
+          include: {
+            property: {
+              include: { customer: true },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 80,
+    });
+
+    return { databaseOnline: true, images: extractHusstatusImages(submissions, rvmSections) };
+  } catch {
+    return { databaseOnline: false, images: [] };
+  }
+}
+
+function groupByCustomer(images: HusstatusImage[]) {
+  const groups = new Map<string, HusstatusImage[]>();
+  for (const image of images) {
+    const key = `${image.customerId}:${image.propertyId}`;
+    groups.set(key, [...(groups.get(key) ?? []), image]);
+  }
+  return Array.from(groups.entries()).map(([key, items]) => ({ key, images: items }));
+}
+
+export default async function AdminImagesPage() {
+  const { databaseOnline, images } = await getImages();
+  const customerGroups = groupByCustomer(images);
+  const customerVisible = images.filter((image) => image.visibility === "CUSTOMER").length;
+  const internal = images.length - customerVisible;
+
+  return (
+    <main className="adminShell">
+      <AdminSidebar active="images" label="Bilder" />
+
+      <section className="adminWork">
+        <header className="adminTop">
+          <div>
+            <p className="sectionKicker">Bildbibliotek</p>
+            <h1>Alla bilder samlade per kund och fastighet.</h1>
+            <p>
+              Bilder från formulärfrågor och komponentrader hamnar här automatiskt. Det gör att varje kund kan få ett
+              eget bibliotek kopplat till sin husrapport och historik.
+            </p>
+            <div className={`persistenceNote ${databaseOnline ? "online" : "offline"}`}>
+              {databaseOnline ? "Bilder läses från sparade RVM-formulär." : "Databasen är offline. Inga bilder kan läsas."}
+            </div>
+          </div>
+          <div className="portalActions">
+            <a className="buttonLink" href="/admin/husstatus-form">Fyll i formulär</a>
+            <a className="buttonLink" href="/api/admin/images/download">Ladda ner alla bilder</a>
+            <a className="buttonLink" href="/portal">Kundportal</a>
+          </div>
+        </header>
+
+        <section className="adminKpis">
+          <article className="portalPanel">
+            <span>Bilder</span>
+            <strong>{images.length}</strong>
+            <small>Från formulär och komponentregister</small>
+          </article>
+          <article className="portalPanel">
+            <span>Kunder</span>
+            <strong>{customerGroups.length}</strong>
+            <small>Med personligt bibliotek</small>
+          </article>
+          <article className="portalPanel">
+            <span>Kundportal</span>
+            <strong>{customerVisible}</strong>
+            <small>Markerade som kundsynliga</small>
+          </article>
+          <article className="portalPanel">
+            <span>Internt</span>
+            <strong>{internal}</strong>
+            <small>Endast Rehn VVS</small>
+          </article>
+        </section>
+
+        <section className="portalPanel">
+          <div className="panelTitle">
+            <h3>Personliga bibliotek</h3>
+            <span>{customerGroups.length} kund/fastighet-grupper</span>
+          </div>
+
+          {customerGroups.length === 0 ? (
+            <div className="emptyState">
+              <strong>Inga bilder sparade än.</strong>
+              <span>Lägg in bilder i formuläret, spara eller slutför, så visas de här.</span>
+              <a className="buttonLink" href="/admin/husstatus-form">Lägg in bilder</a>
+            </div>
+          ) : (
+            <div className="customerImageLibrary">
+              {customerGroups.map((group) => {
+                const first = group.images[0];
+                return (
+                  <article className="imageLibraryGroup" key={group.key}>
+                    <header>
+                      <div>
+                        <span>{first.customerName}</span>
+                        <strong>{first.propertyName}</strong>
+                        <small>{first.address}</small>
+                      </div>
+                      <div className="portalActions compact">
+                        <a className="buttonLink" href={`/api/admin/images/download?propertyId=${first.propertyId}`}>Ladda ner mapp</a>
+                        <a className="buttonLink" href={`/husrapport?propertyId=${first.propertyId}`}>Husrapport</a>
+                      </div>
+                    </header>
+                    <div className="imageLibraryGrid">
+                      {group.images.map((image) => (
+                        <figure key={image.id}>
+                          <Image
+                            alt={`${image.fieldLabel} - ${image.customerName}`}
+                            height={180}
+                            src={image.dataUrl}
+                            unoptimized
+                            width={240}
+                          />
+                          <figcaption>
+                            <span>{image.sectionTitle}</span>
+                            <strong>{image.fieldLabel}</strong>
+                            <small>{image.visibility === "CUSTOMER" ? "Kundsynlig" : "Intern"} · {image.fileName}</small>
+                          </figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </section>
+    </main>
+  );
+}

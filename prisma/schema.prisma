@@ -1,0 +1,710 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  COMPANY_OWNER
+  ADMIN
+  SUPERVISOR
+  WORKER
+  CUSTOMER
+}
+
+enum AuthProvider {
+  EMAIL
+  MAGIC_LINK
+  BANKID
+  GOOGLE
+  MICROSOFT
+}
+
+enum DocumentVisibility {
+  INTERNAL
+  FIELD_TEAM
+  CUSTOMER
+}
+
+enum GdprRequestType {
+  EXPORT
+  DELETE
+  RECTIFY
+}
+
+enum GdprRequestStatus {
+  REQUESTED
+  VERIFYING_IDENTITY
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum BackupStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  PAUSED
+  WAITING_FOR_CUSTOMER
+  READY_FOR_INVOICING
+  COMPLETED
+  ARCHIVED
+}
+
+enum ApprovalStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  INVOICED
+}
+
+enum ComponentStatus {
+  GREEN
+  YELLOW
+  ORANGE
+  RED
+  GREY
+}
+
+model Company {
+  id           String          @id @default(cuid())
+  name         String
+  orgNo        String
+  users        User[]
+  customers    Customer[]
+  projects     Project[]
+  properties   Property[]
+  documents    DocumentAsset[]
+  gdprRequests GdprRequest[]
+  backupJobs   BackupJob[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model User {
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  email        String
+  role         Role
+  active       Boolean       @default(true)
+  lastLoginAt  DateTime?
+  authAccounts AuthAccount[]
+  sessions     AuthSession[]
+  createdAt    DateTime      @default(now())
+
+  @@unique([companyId, email])
+  @@index([companyId, role])
+}
+
+model AuthAccount {
+  id                String       @id @default(cuid())
+  companyId         String
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          AuthProvider
+  providerAccountId String
+  passwordHash      String?
+  mfaEnabled        Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([companyId, userId])
+}
+
+model AuthSession {
+  id        String    @id @default(cuid())
+  companyId String
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([companyId, userId, expiresAt])
+}
+
+model Customer {
+  id            String                 @id @default(cuid())
+  companyId     String
+  company       Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type          String
+  name          String
+  orgOrPersonNo String?
+  invoiceEmail  String?
+  phone         String?
+  paymentTerms  Int                    @default(30)
+  projects      Project[]
+  properties    Property[]
+  portalAccount CustomerPortalAccount?
+  documents     DocumentAsset[]
+  gdprRequests  GdprRequest[]
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([companyId, name])
+}
+
+model Project {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    Customer        @relation(fields: [customerId], references: [id])
+  propertyId  String?
+  property    Property?       @relation(fields: [propertyId], references: [id])
+  number      String
+  name        String
+  status      ProjectStatus   @default(PLANNED)
+  budgetCents Int             @default(0)
+  workOrders  WorkOrder[]
+  timeEntries TimeEntry[]
+  materials   MaterialEntry[]
+  quotes      Quote[]
+  invoices    InvoiceBasis[]
+  documents   DocumentAsset[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+}
+
+model WorkOrder {
+  id          String      @id @default(cuid())
+  companyId   String
+  projectId   String
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  scheduledAt DateTime?
+  priority    String      @default("NORMAL")
+  status      String      @default("ASSIGNED")
+  timeEntries TimeEntry[]
+  createdAt   DateTime    @default(now())
+
+  @@index([companyId, scheduledAt])
+}
+
+model TimeEntry {
+  id          String         @id @default(cuid())
+  companyId   String
+  projectId   String
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workOrderId String?
+  workOrder   WorkOrder?     @relation(fields: [workOrderId], references: [id])
+  userId      String
+  minutes     Int
+  workType    String
+  description String?
+  status      ApprovalStatus @default(DRAFT)
+  invoiceId   String?
+  createdAt   DateTime       @default(now())
+
+  @@index([companyId, status])
+  @@index([companyId, invoiceId])
+}
+
+model MaterialEntry {
+  id         String         @id @default(cuid())
+  companyId  String
+  projectId  String
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name       String
+  quantity   Decimal
+  unit       String
+  costCents  Int
+  salesCents Int
+  status     ApprovalStatus @default(DRAFT)
+  invoiceId  String?
+  createdAt  DateTime       @default(now())
+
+  @@index([companyId, status])
+  @@index([companyId, invoiceId])
+}
+
+model Quote {
+  id         String    @id @default(cuid())
+  companyId  String
+  projectId  String?
+  project    Project?  @relation(fields: [projectId], references: [id])
+  customerId String
+  version    Int
+  status     String    @default("DRAFT")
+  acceptedAt DateTime?
+  acceptedBy String?
+  acceptedIp String?
+  totalCents Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@unique([companyId, id, version])
+  @@index([companyId, status])
+}
+
+model InvoiceBasis {
+  id         String   @id @default(cuid())
+  companyId  String
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status     String   @default("DRAFT")
+  totalCents Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, status])
+}
+
+model Property {
+  id           String               @id @default(cuid())
+  companyId    String
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId   String
+  customer     Customer             @relation(fields: [customerId], references: [id])
+  propertyNo   String?
+  type         String
+  address      String
+  buildYear    Int?
+  healthScore  PropertyHealthScore?
+  buildings    Building[]
+  rooms        Room[]
+  systems      TechnicalSystem[]
+  components   Component[]
+  inspections  Inspection[]
+  plans        MaintenancePlan[]
+  projects     Project[]
+  documents    DocumentAsset[]
+  houseReports HouseReport[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([companyId, customerId])
+}
+
+model Building {
+  id         String   @id @default(cuid())
+  companyId  String
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name       String
+  address    String?
+  units      Unit[]
+}
+
+model Unit {
+  id         String   @id @default(cuid())
+  companyId  String
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  label      String
+  rooms      Room[]
+}
+
+model Room {
+  id         String      @id @default(cuid())
+  companyId  String
+  propertyId String
+  property   Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unitId     String?
+  unit       Unit?       @relation(fields: [unitId], references: [id])
+  name       String
+  components Component[]
+}
+
+model TechnicalSystem {
+  id         String      @id @default(cuid())
+  companyId  String
+  propertyId String
+  property   Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name       String
+  category   String
+  components Component[]
+}
+
+model ComponentType {
+  id                    String          @id @default(cuid())
+  companyId             String
+  name                  String
+  category              String
+  normalLifeYears       Int
+  serviceIntervalMonths Int?
+  components            Component[]
+  rules                 LifecycleRule[]
+
+  @@unique([companyId, name])
+}
+
+model Component {
+  id                     String                @id @default(cuid())
+  companyId              String
+  propertyId             String
+  property               Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  typeId                 String
+  type                   ComponentType         @relation(fields: [typeId], references: [id])
+  roomId                 String?
+  room                   Room?                 @relation(fields: [roomId], references: [id])
+  systemId               String?
+  system                 TechnicalSystem?      @relation(fields: [systemId], references: [id])
+  brand                  String?
+  model                  String?
+  serialNo               String?
+  installedAt            DateTime?
+  estimatedYear          Int?
+  estimateCertainty      String?
+  adjustedLifeYears      Int?
+  condition              String                @default("UNKNOWN")
+  riskLevel              String                @default("UNKNOWN")
+  criticality            String                @default("NORMAL")
+  status                 ComponentStatus       @default(GREY)
+  replacementCostCents   Int                   @default(0)
+  plannedReplacementYear Int?
+  inspections            ComponentInspection[]
+  planItems              MaintenancePlanItem[]
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  @@index([companyId, propertyId, status])
+}
+
+model ComponentInspection {
+  id              String          @id @default(cuid())
+  companyId       String
+  componentId     String
+  component       Component       @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  inspectionId    String?
+  inspectedAt     DateTime        @default(now())
+  condition       String
+  status          ComponentStatus
+  remainingMonths Int?
+  overrideReason  String?
+}
+
+model ComponentCondition {
+  id        String @id @default(cuid())
+  companyId String
+  name      String
+  score     Int
+
+  @@unique([companyId, name])
+}
+
+model LifecycleRule {
+  id              String        @id @default(cuid())
+  companyId       String
+  componentTypeId String
+  componentType   ComponentType @relation(fields: [componentTypeId], references: [id], onDelete: Cascade)
+  condition       String
+  lifeDeltaYears  Int
+  reason          String
+}
+
+model Inspection {
+  id          String           @id @default(cuid())
+  companyId   String
+  propertyId  String
+  property    Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  type        String
+  status      String           @default("DRAFT")
+  performedAt DateTime?
+  submissions FormSubmission[]
+}
+
+model MaintenancePlan {
+  id           String                @id @default(cuid())
+  companyId    String
+  propertyId   String
+  property     Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  horizonYears Int                   @default(20)
+  version      Int                   @default(1)
+  items        MaintenancePlanItem[]
+  createdAt    DateTime              @default(now())
+}
+
+model MaintenancePlanItem {
+  id                 String          @id @default(cuid())
+  companyId          String
+  planId             String
+  plan               MaintenancePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  componentId        String?
+  component          Component?      @relation(fields: [componentId], references: [id])
+  recommendedYear    Int
+  action             String
+  priority           String
+  estimatedCostCents Int
+  preliminary        Boolean         @default(true)
+  status             String          @default("PLANNED")
+}
+
+model FormTemplate {
+  id        String        @id @default(cuid())
+  companyId String
+  name      String
+  audience  String
+  versions  FormVersion[]
+}
+
+model FormVersion {
+  id          String           @id @default(cuid())
+  companyId   String
+  templateId  String
+  template    FormTemplate     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version     Int
+  schema      Json
+  publishedAt DateTime?
+  submissions FormSubmission[]
+
+  @@unique([templateId, version])
+}
+
+model FormSubmission {
+  id           String        @id @default(cuid())
+  companyId    String
+  versionId    String
+  version      FormVersion   @relation(fields: [versionId], references: [id])
+  inspectionId String?
+  inspection   Inspection?   @relation(fields: [inspectionId], references: [id])
+  status       String        @default("DRAFT")
+  answers      FormAnswer[]
+  houseReports HouseReport[]
+  signedAt     DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+}
+
+model FormAnswer {
+  id           String         @id @default(cuid())
+  companyId    String
+  submissionId String
+  submission   FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fieldKey     String
+  value        Json
+}
+
+model ServiceAgreement {
+  id            String                @id @default(cuid())
+  companyId     String
+  customerId    String
+  propertyId    String?
+  status        String                @default("DRAFT")
+  startsAt      DateTime?
+  bindingMonths Int                   @default(0)
+  noticeMonths  Int                   @default(1)
+  versions      AgreementVersion[]
+  acceptances   AgreementAcceptance[]
+}
+
+model AgreementVersion {
+  id          String           @id @default(cuid())
+  companyId   String
+  agreementId String
+  agreement   ServiceAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  version     Int
+  terms       String
+  createdAt   DateTime         @default(now())
+}
+
+model AgreementAcceptance {
+  id          String           @id @default(cuid())
+  companyId   String
+  agreementId String
+  agreement   ServiceAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  versionId   String
+  acceptedBy  String
+  acceptedIp  String?
+  acceptedAt  DateTime         @default(now())
+}
+
+model CustomerPortalAccount {
+  id         String   @id @default(cuid())
+  companyId  String
+  customerId String   @unique
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  email      String
+  active     Boolean  @default(true)
+}
+
+model CustomerRequest {
+  id          String   @id @default(cuid())
+  companyId   String
+  customerId  String
+  propertyId  String?
+  componentId String?
+  category    String
+  priority    String
+  description String
+  status      String   @default("NEW")
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, status, priority])
+}
+
+model NotificationPreference {
+  id         String  @id @default(cuid())
+  companyId  String
+  customerId String
+  channel    String
+  purpose    String
+  enabled    Boolean @default(true)
+}
+
+model Notification {
+  id         String    @id @default(cuid())
+  companyId  String
+  customerId String?
+  channel    String
+  purpose    String
+  status     String
+  sentAt     DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model PropertyHealthScore {
+  id           String   @id @default(cuid())
+  companyId    String
+  propertyId   String   @unique
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  score        Int
+  calculatedAt DateTime @default(now())
+  explanation  Json
+}
+
+model HouseReport {
+  id            String         @id @default(cuid())
+  companyId     String
+  propertyId    String
+  property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  submissionId  String
+  submission    FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reportNo      String
+  status        String         @default("READY_FOR_REVIEW")
+  formVersion   Int
+  reportVersion Int            @default(1)
+  generatedAt   DateTime       @default(now())
+  reviewedAt    DateTime?
+  publishedAt   DateTime?
+  archivedAt    DateTime?
+  performedAt   DateTime?
+  performedBy   String?
+  reportOwner   String?
+  nextControl   String?
+  qualityNotes  String?
+  summary       Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([companyId, reportNo])
+  @@unique([submissionId, reportVersion])
+  @@index([companyId, propertyId, status])
+}
+
+model OwnershipTransfer {
+  id             String   @id @default(cuid())
+  companyId      String
+  propertyId     String
+  currentOwnerId String
+  newOwnerEmail  String
+  status         String   @default("REQUESTED")
+  createdAt      DateTime @default(now())
+}
+
+model Consent {
+  id         String   @id @default(cuid())
+  companyId  String
+  customerId String
+  type       String
+  granted    Boolean
+  source     String
+  recordedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String
+  before    Json?
+  after     Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([companyId, entity, entityId])
+}
+
+model DocumentAsset {
+  id             String             @id @default(cuid())
+  companyId      String
+  company        Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId     String?
+  customer       Customer?          @relation(fields: [customerId], references: [id])
+  propertyId     String?
+  property       Property?          @relation(fields: [propertyId], references: [id])
+  projectId      String?
+  project        Project?           @relation(fields: [projectId], references: [id])
+  title          String
+  fileName       String
+  mimeType       String
+  storageKey     String
+  checksumSha256 String
+  sizeBytes      Int
+  visibility     DocumentVisibility @default(INTERNAL)
+  uploadedById   String?
+  version        Int                @default(1)
+  retainedUntil  DateTime?
+  createdAt      DateTime           @default(now())
+
+  @@index([companyId, customerId])
+  @@index([companyId, propertyId])
+  @@index([companyId, projectId])
+  @@index([companyId, visibility])
+}
+
+model GdprRequest {
+  id          String            @id @default(cuid())
+  companyId   String
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId  String?
+  customer    Customer?         @relation(fields: [customerId], references: [id])
+  type        GdprRequestType
+  status      GdprRequestStatus @default(REQUESTED)
+  requestedBy String
+  verifiedAt  DateTime?
+  completedAt DateTime?
+  exportKey   String?
+  notes       String?
+  createdAt   DateTime          @default(now())
+
+  @@index([companyId, status])
+}
+
+model BackupJob {
+  id             String       @id @default(cuid())
+  companyId      String
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  status         BackupStatus @default(QUEUED)
+  scope          String
+  storageKey     String?
+  checksumSha256 String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  error          String?
+  createdAt      DateTime     @default(now())
+
+  @@index([companyId, status, createdAt])
+}
