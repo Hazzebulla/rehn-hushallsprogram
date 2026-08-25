@@ -87,9 +87,8 @@ export async function createWorkOrderFromRequestAction(requestId: string) {
 
     revalidatePath("/admin");
     revalidatePath("/admin/requests");
-    revalidatePath("/admin/workorders");
 
-    return { ok: true, message: "Ärendet blev projekt och arbetsorder." };
+    return { ok: true, message: "Ärendet blev åtgärdsunderlag för Husrapport." };
   } catch {
     return { ok: false, message: "Databasen är inte nåbar. Åtgärden kunde inte sparas." };
   }

@@ -26,18 +26,21 @@ async function getCustomers(): Promise<{ customers: CustomerVm[]; databaseOnline
       customers: customers.map((customer) => {
         const property = customer.properties[0];
         const explanation = property?.healthScore?.explanation as
-          | { risk?: number; heating?: string; nextAction?: string }
+          | { risk?: number; heating?: string; nextAction?: string; profileSourceUrl?: string }
           | undefined;
 
         return {
           id: customer.id,
           name: customer.name,
+          identifier: customer.orgOrPersonNo ?? "",
           email: customer.invoiceEmail ?? "",
           phone: customer.phone ?? "",
           property: property?.propertyNo ?? "Fastighet saknas",
           address: property?.address ?? "",
           type: property?.type ?? customer.type,
+          buildYear: property?.buildYear ? String(property.buildYear) : "",
           heating: explanation?.heating ?? "Ej angivet",
+          profileSourceUrl: explanation?.profileSourceUrl ?? "",
           risk: explanation?.risk ?? 28,
           health: property?.healthScore?.score ?? 74,
           nextAction: explanation?.nextAction ?? "Nästa åtgärd saknas",

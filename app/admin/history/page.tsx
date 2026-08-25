@@ -76,7 +76,7 @@ export default async function HistoryPage() {
             <p className="sectionKicker">Audit log</p>
             <h1>Komplett historik över viktiga ändringar.</h1>
             <p>
-              Varje kund, dokument, arbetsorder, fakturaunderlag och GDPR/backup-händelse ska kunna spåras.
+              Varje kund, fastighet, dokument, formulärsvar, rapportändring och GDPR/backup-händelse ska kunna spåras.
             </p>
             <div className={`persistenceNote ${databaseOnline ? "online" : "offline"}`}>
               {databaseOnline ? "Historik läses från databasen." : "Databasen är offline. Visar demohistorik."}

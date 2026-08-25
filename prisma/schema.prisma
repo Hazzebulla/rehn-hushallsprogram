@@ -76,6 +76,22 @@ enum ComponentStatus {
   GREY
 }
 
+enum ProductDataQuality {
+  verified_manual
+  manufacturer_source
+  supplier_source
+  estimated
+  unverified
+}
+
+enum ProductImportStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 model Company {
   id           String          @id @default(cuid())
   name         String
@@ -270,27 +286,28 @@ model InvoiceBasis {
 }
 
 model Property {
-  id           String               @id @default(cuid())
-  companyId    String
-  company      Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerId   String
-  customer     Customer             @relation(fields: [customerId], references: [id])
-  propertyNo   String?
-  type         String
-  address      String
-  buildYear    Int?
-  healthScore  PropertyHealthScore?
-  buildings    Building[]
-  rooms        Room[]
-  systems      TechnicalSystem[]
-  components   Component[]
-  inspections  Inspection[]
-  plans        MaintenancePlan[]
-  projects     Project[]
-  documents    DocumentAsset[]
-  houseReports HouseReport[]
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id                 String               @id @default(cuid())
+  companyId          String
+  company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId         String
+  customer           Customer             @relation(fields: [customerId], references: [id])
+  propertyNo         String?
+  type               String
+  address            String
+  buildYear          Int?
+  healthScore        PropertyHealthScore?
+  buildings          Building[]
+  rooms              Room[]
+  systems            TechnicalSystem[]
+  components         Component[]
+  propertyComponents PropertyComponent[]
+  inspections        Inspection[]
+  plans              MaintenancePlan[]
+  projects           Project[]
+  documents          DocumentAsset[]
+  houseReports       HouseReport[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@index([companyId, customerId])
 }
@@ -359,6 +376,8 @@ model Component {
   room                   Room?                 @relation(fields: [roomId], references: [id])
   systemId               String?
   system                 TechnicalSystem?      @relation(fields: [systemId], references: [id])
+  productModelId         String?
+  productModel           ProductModel?         @relation(fields: [productModelId], references: [id])
   brand                  String?
   model                  String?
   serialNo               String?
@@ -378,6 +397,126 @@ model Component {
   updatedAt              DateTime              @updatedAt
 
   @@index([companyId, propertyId, status])
+  @@index([companyId, productModelId])
+}
+
+model Manufacturer {
+  id        String         @id @default(cuid())
+  name      String         @unique
+  website   String?
+  models    ProductModel[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model ProductModel {
+  id                       String              @id @default(cuid())
+  manufacturerId           String
+  manufacturer             Manufacturer        @relation(fields: [manufacturerId], references: [id], onDelete: Cascade)
+  category                 String
+  modelName                String
+  systemType               String?
+  productionStartYear      Int?
+  productionEndYear        Int?
+  outputMinKw              Float?
+  outputMaxKw              Float?
+  tankVolumeLitres         Int?
+  connectionSize           String?
+  dimensions               String?
+  controlSystem            String?
+  expectedLifetimeMinYears Int?
+  expectedLifetimeMaxYears Int?
+  replacementPriceMinSek   Int?
+  replacementPriceMaxSek   Int?
+  sourceUrl                String?
+  manualUrl                String?
+  wiringDiagramUrl         String?
+  dataQuality              ProductDataQuality  @default(unverified)
+  lastVerifiedAt           DateTime?
+  active                   Boolean             @default(true)
+  components               Component[]
+  propertyComponents       PropertyComponent[]
+  favorites                ProductFavorite[]
+  usage                    ProductUsage[]
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  @@unique([manufacturerId, category, modelName])
+  @@index([category, active])
+  @@index([modelName])
+}
+
+model PropertyComponent {
+  id                 String        @id @default(cuid())
+  companyId          String
+  propertyId         String
+  property           Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  productModelId     String?
+  productModel       ProductModel? @relation(fields: [productModelId], references: [id])
+  customManufacturer String?
+  customModelName    String?
+  serialNumber       String?
+  manufacturingYear  Int?
+  installationYear   Int?
+  condition          String?
+  measuredValues     Json?
+  notes              String?
+  photos             Json?
+  reviewStatus       String        @default("PROPERTY_ONLY")
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([companyId, propertyId])
+  @@index([companyId, productModelId])
+  @@index([reviewStatus])
+}
+
+model ProductImportLog {
+  id           String              @id @default(cuid())
+  source       String
+  status       ProductImportStatus @default(QUEUED)
+  createdCount Int                 @default(0)
+  updatedCount Int                 @default(0)
+  skippedCount Int                 @default(0)
+  errorCount   Int                 @default(0)
+  errorDetails Json?
+  startedAt    DateTime            @default(now())
+  completedAt  DateTime?
+}
+
+model ProductFavorite {
+  id             String       @id @default(cuid())
+  companyId      String
+  userId         String?
+  productModelId String
+  productModel   ProductModel @relation(fields: [productModelId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([companyId, userId, productModelId])
+  @@index([companyId, createdAt])
+}
+
+model ProductUsage {
+  id             String       @id @default(cuid())
+  companyId      String
+  productModelId String
+  productModel   ProductModel @relation(fields: [productModelId], references: [id], onDelete: Cascade)
+  usedAt         DateTime     @default(now())
+
+  @@index([companyId, usedAt])
+}
+
+model ProductChangeLog {
+  id             String   @id @default(cuid())
+  companyId      String
+  actorId        String?
+  productModelId String?
+  action         String
+  before         Json?
+  after          Json?
+  createdAt      DateTime @default(now())
+
+  @@index([companyId, productModelId])
 }
 
 model ComponentInspection {

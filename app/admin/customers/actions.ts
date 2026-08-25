@@ -9,12 +9,15 @@ const DEMO_ACTOR_ID = "usr_admin_rehn";
 export type CustomerVm = {
   id: string;
   name: string;
+  identifier: string;
   email: string;
   phone: string;
   property: string;
   address: string;
   type: string;
+  buildYear: string;
   heating: string;
+  profileSourceUrl: string;
   risk: number;
   health: number;
   nextAction: string;
@@ -51,6 +54,7 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
         companyId: COMPANY_ID,
         type: input.type,
         name: input.name,
+        orgOrPersonNo: input.identifier || null,
         invoiceEmail: input.email,
         phone: input.phone || null,
         properties: {
@@ -59,6 +63,7 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
             type: input.type,
             address: input.address,
             propertyNo: input.property,
+            buildYear: input.buildYear ? Number(input.buildYear) : null,
             healthScore: {
               create: {
                 companyId: COMPANY_ID,
@@ -67,6 +72,7 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
                   risk,
                   heating: input.heating,
                   nextAction: input.nextAction,
+                  profileSourceUrl: input.profileSourceUrl,
                   source: "admin_customer_form",
                 },
               },
@@ -97,8 +103,11 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
         entityId: customer.id,
         after: {
           customerName: customer.name,
+          identifier: input.identifier,
           propertyId: property?.id,
           propertyName: input.property,
+          buildYear: input.buildYear,
+          profileSourceUrl: input.profileSourceUrl,
           nextAction: input.nextAction,
         },
       },
@@ -112,12 +121,15 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
       customer: {
         id: customer.id,
         name: customer.name,
+        identifier: customer.orgOrPersonNo ?? input.identifier,
         email: customer.invoiceEmail ?? input.email,
         phone: customer.phone ?? "",
         property: property?.propertyNo ?? input.property,
         address: property?.address ?? input.address,
         type: property?.type ?? input.type,
+        buildYear: property?.buildYear ? String(property.buildYear) : input.buildYear,
         heating: input.heating,
+        profileSourceUrl: input.profileSourceUrl,
         risk,
         health,
         nextAction: input.nextAction,
@@ -170,7 +182,7 @@ export async function publishCustomerToPortalAction(customerId: string): Promise
 
     const property = customer.properties[0];
     const explanation = property?.healthScore?.explanation as
-      | { risk?: number; heating?: string; nextAction?: string }
+      | { risk?: number; heating?: string; nextAction?: string; profileSourceUrl?: string }
       | undefined;
 
     return {
@@ -179,12 +191,15 @@ export async function publishCustomerToPortalAction(customerId: string): Promise
       customer: {
         id: customer.id,
         name: customer.name,
+        identifier: customer.orgOrPersonNo ?? "",
         email: customer.invoiceEmail ?? "",
         phone: customer.phone ?? "",
         property: property?.propertyNo ?? "Fastighet",
         address: property?.address ?? "",
         type: property?.type ?? customer.type,
+        buildYear: property?.buildYear ? String(property.buildYear) : "",
         heating: explanation?.heating ?? "Ej angivet",
+        profileSourceUrl: explanation?.profileSourceUrl ?? "",
         risk: explanation?.risk ?? 28,
         health: property?.healthScore?.score ?? 74,
         nextAction: explanation?.nextAction ?? "Nästa åtgärd saknas",

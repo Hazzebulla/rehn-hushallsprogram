@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useState, useTransition } from "react";
@@ -59,7 +59,7 @@ export default function PortalView({ data }: { data: PortalVm }) {
         <a href="/">Omslag</a>
         <a href={reportUrl}>Status Husrapport</a>
         <a className="active" href="/portal">Kundkonto</a>
-        <a href="/admin">SaaS-system</a>
+        <a href="/admin">RVM arbetsyta</a>
       </nav>
 
       <header className="portalHero">
@@ -131,7 +131,7 @@ export default function PortalView({ data }: { data: PortalVm }) {
         <article className="portalPanel">
           <div className="panelTitle">
             <h3>Aktuellt</h3>
-            <span>Kopplat till SaaS</span>
+            <span>Kopplat till husrapport</span>
           </div>
           <div className="statusCards">
             <div><span>Rekommenderad åtgärd</span><strong>{data.nextAction}</strong><small>Från husjournal</small></div>
@@ -228,3 +228,5 @@ export default function PortalView({ data }: { data: PortalVm }) {
     </main>
   );
 }
+
+

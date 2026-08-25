@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "../../lib/prisma";
@@ -45,8 +45,10 @@ export async function createPortalRequestAction(input: {
     revalidatePath("/portal");
     revalidatePath("/admin");
 
-    return { ok: true, message: "Ärendet skapades och syns nu i SaaS-systemet." };
+    return { ok: true, message: "Ärendet skapades och syns nu i RVM arbetsytan." };
   } catch {
     return { ok: false, message: "Databasen är inte nåbar. Ärendet visas bara i demo." };
   }
 }
+
+

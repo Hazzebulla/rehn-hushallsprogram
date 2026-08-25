@@ -47,7 +47,6 @@ type PhotoLike = {
 };
 
 const imageVisibility = new Set([
-  "photo_kitchen_bath__photos",
   "component_register_rows",
   "other_information__photos",
   "other_image_notes__photos",

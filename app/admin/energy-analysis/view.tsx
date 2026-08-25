@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 
@@ -487,7 +487,7 @@ export default function EnergyAnalysisView() {
             <div><strong>Postadress</strong><span>Rehn VVS & Montage I Timrå AB</span><span>Arbetsledarvägen 10</span><span>863 41 Sundsvall</span></div>
             <div><strong>Telefon</strong><span>070 298 86 63</span></div>
             <div><strong>Bankgiro</strong><span>5006-7636</span><strong>Momsreg.nr</strong><span>SE559017231701</span></div>
-            <div><span>Godkänd för F-skatt</span><em>Offert skapad via RVM SaaS</em></div>
+            <div><span>Godkänd för F-skatt</span><em>Offert skapad via RVM Husrapport</em></div>
           </footer>
         </article>
       </section>}
@@ -519,3 +519,5 @@ export default function EnergyAnalysisView() {
     </section>
   );
 }
+
+

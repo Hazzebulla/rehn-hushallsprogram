@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
+import { buildImageChecklist, summarizeImageChecklist, type ImageChecklistStatusMap, type SectionStatusMap } from "./image-checklist";
 import { rvmFieldCount, rvmSections } from "./spec";
 
 const COMPANY_ID = "org_rehn_vvs";
 const DEMO_ACTOR_ID = "usr_admin_rehn";
 
 type ComponentRegisterRow = {
+  productModelId?: string;
   typeName?: string;
   systemName?: string;
   category?: string;
@@ -32,7 +34,19 @@ type PhotoAttachment = {
   createdAt?: string;
 };
 
-type Answers = Record<string, string | string[] | ComponentRegisterRow[] | PhotoAttachment[]>;
+type SignatureEntry = {
+  id?: string;
+  label?: string;
+  signedBy?: string;
+  role?: string;
+  signedAt?: string;
+  imageDataUrl?: string;
+  signedHash?: string;
+};
+
+type SignatureMap = Record<string, SignatureEntry>;
+
+type Answers = Record<string, string | string[] | ComponentRegisterRow[] | PhotoAttachment[] | ImageChecklistStatusMap | SectionStatusMap | SignatureMap>;
 
 async function ensureTemplateVersion() {
   const template = await prisma.formTemplate.upsert({
@@ -70,8 +84,47 @@ function filledEntries(answers: Answers) {
       }
       return value.length > 0;
     }
+    if (value && typeof value === "object") {
+      return Object.values(value).some((item) => String(item ?? "").trim().length > 0);
+    }
     return String(value ?? "").trim().length > 0;
   });
+}
+
+const fieldSectionByKey = new Map(
+  rvmSections.flatMap((section) => section.fields.map((field) => [field.key, section.id] as const)),
+);
+
+function sectionStatuses(answers: Answers): SectionStatusMap {
+  const value = answers.section_statuses;
+  return value && typeof value === "object" && !Array.isArray(value) ? value as SectionStatusMap : {};
+}
+
+function isSectionActive(answers: Answers, sectionId: number) {
+  return sectionStatuses(answers)[String(sectionId)] !== "not_applicable";
+}
+
+function isFieldActive(answers: Answers, fieldKey: string) {
+  const baseKey = fieldKey.replace(/__source$|__photos$/, "");
+  const sectionId = fieldSectionByKey.get(baseKey);
+  return sectionId ? isSectionActive(answers, sectionId) : true;
+}
+
+function activeAnswersForValidation(answers: Answers): Answers {
+  return Object.fromEntries(
+    Object.entries(answers).filter(([key]) =>
+      key !== "section_statuses"
+      && key !== "image_checklist_statuses"
+      && key !== "signatures"
+      && isFieldActive(answers, key),
+    ),
+  ) as Answers;
+}
+
+function activeFieldCount(answers: Answers) {
+  return rvmSections
+    .filter((section) => isSectionActive(answers, section.id))
+    .reduce((count, section) => count + section.fields.length, 0);
 }
 
 function storedAnswerValue(value: unknown) {
@@ -213,7 +266,17 @@ function stringsFromAnswer(value: Answers[string]): string[] {
         .map(([, cell]) => String(cell));
     });
   }
+  if (value && typeof value === "object") return Object.values(value).map((item) => String(item));
   return [value];
+}
+
+function photoCountForAnswer(value: Answers[string] | undefined) {
+  return Array.isArray(value) && value.every(isPhoto) ? value.length : 0;
+}
+
+function imageChecklistStatuses(value: Answers[string] | undefined): ImageChecklistStatusMap {
+  if (!value || Array.isArray(value) || typeof value !== "object") return {};
+  return value as ImageChecklistStatusMap;
 }
 
 function riskFromAnswers(answers: Answers, status?: string) {
@@ -260,14 +323,29 @@ async function ensureSystem(propertyId: string, name: string, category: string) 
 }
 
 async function createComponentFromRow(propertyId: string, row: ComponentRegisterRow) {
-  if (!row.typeName) return false;
-  const category = row.category || row.systemName || (/vatten|wc|brunn|disk/i.test(row.typeName) ? "Tappvatten" : "Värmesystem");
-  const componentType = await ensureComponentType(row.typeName, category);
-  const system = await ensureSystem(propertyId, row.systemName || category, category);
+  if (!row.typeName && !row.productModelId) return false;
+  const product = row.productModelId
+    ? await prisma.productModel.findFirst({
+        where: { id: row.productModelId, active: true },
+        include: { manufacturer: true },
+      })
+    : null;
+  const typeName = row.typeName || product?.category || "Komponent";
+  const category = row.category || product?.category || row.systemName || (/vatten|wc|brunn|disk/i.test(typeName) ? "Tappvatten" : "Värmesystem");
+  const normalLifeYears = product?.expectedLifetimeMinYears ?? product?.expectedLifetimeMaxYears ?? 20;
+  const componentType = await prisma.componentType.upsert({
+    where: { companyId_name: { companyId: COMPANY_ID, name: typeName } },
+    update: { category, normalLifeYears },
+    create: { companyId: COMPANY_ID, name: typeName, category, normalLifeYears },
+  });
+  const system = await ensureSystem(propertyId, row.systemName || product?.systemType || category, category);
   const estimatedYear = Number(row.installedYear);
   const replacementYear = Number(row.replacementYear);
   const status = statusFromText(row.status || "");
   const costKr = Number(String(row.costKr ?? "").replace(/[^\d]/g, ""));
+  const fallbackCostKr = product?.replacementPriceMinSek && product?.replacementPriceMaxSek
+    ? Math.round((product.replacementPriceMinSek + product.replacementPriceMaxSek) / 2)
+    : product?.replacementPriceMinSek ?? product?.replacementPriceMaxSek ?? 0;
 
   await prisma.component.create({
     data: {
@@ -275,8 +353,9 @@ async function createComponentFromRow(propertyId: string, row: ComponentRegister
       propertyId,
       typeId: componentType.id,
       systemId: system.id,
-      brand: row.brand || null,
-      model: row.model || null,
+      productModelId: product?.id ?? null,
+      brand: row.brand || product?.manufacturer.name || null,
+      model: row.model || product?.modelName || null,
       serialNo: row.serialNo || null,
       estimatedYear: Number.isFinite(estimatedYear) ? estimatedYear : null,
       estimateCertainty: Number.isFinite(estimatedYear) ? "FORM_TABLE" : null,
@@ -287,13 +366,32 @@ async function createComponentFromRow(propertyId: string, row: ComponentRegister
       plannedReplacementYear: Number.isFinite(replacementYear) && replacementYear > 0
         ? replacementYear
         : Number.isFinite(estimatedYear) ? estimatedYear + componentType.normalLifeYears : null,
-      replacementCostCents: Number.isFinite(costKr) ? costKr * 100 : 0,
+      replacementCostCents: Number.isFinite(costKr) && costKr > 0 ? costKr * 100 : fallbackCostKr * 100,
     },
   });
 
+  await prisma.propertyComponent.create({
+    data: {
+      companyId: COMPANY_ID,
+      propertyId,
+      productModelId: product?.id ?? null,
+      customManufacturer: product ? null : row.brand || null,
+      customModelName: product ? null : row.model || null,
+      serialNumber: row.serialNo || null,
+      installationYear: Number.isFinite(estimatedYear) ? estimatedYear : null,
+      condition: row.status || null,
+      notes: row.systemName || null,
+      photos: row.photos?.length ? row.photos as Prisma.InputJsonValue : undefined,
+      reviewStatus: product ? "LINKED_PRODUCT" : "NEEDS_REVIEW",
+    },
+  });
+
+  if (product) {
+    await prisma.productUsage.create({ data: { companyId: COMPANY_ID, productModelId: product.id } });
+  }
+
   return true;
 }
-
 async function createComponentsFromRegister(propertyId: string, register?: Answers[string]) {
   if (!register) return 0;
 
@@ -305,6 +403,8 @@ async function createComponentsFromRegister(propertyId: string, register?: Answe
     }
     return created;
   }
+
+  if (typeof register !== "string") return 0;
 
   const lines = register
     .split("\n")
@@ -417,10 +517,27 @@ export async function completeHusstatusFormAction(formData: FormData) {
     if (!property) return { ok: false, message: "Fastigheten finns inte i databasen." };
 
     const entries = filledEntries(answers);
+    const validationAnswers = activeAnswersForValidation(answers);
+    const validationEntries = filledEntries(validationAnswers);
     const minimumRequired = ["customer_name", "property_address", "scope", "overall_status", "rvm_signer"];
-    const missing = minimumRequired.filter((key) => !entries.some(([fieldKey]) => fieldKey === key));
+    const missing = minimumRequired.filter((key) => isFieldActive(answers, key) && !validationEntries.some(([fieldKey]) => fieldKey === key));
     if (missing.length) {
       return { ok: false, message: `Komplettera obligatoriska fält innan rapport skapas: ${missing.join(", ")}.` };
+    }
+
+    const imageChecklist = buildImageChecklist(answers);
+    const imageStatuses = imageChecklistStatuses(answers.image_checklist_statuses);
+    const imageSummary = summarizeImageChecklist(
+      imageChecklist,
+      imageStatuses,
+      (itemId) => photoCountForAnswer(answers[`${itemId}__photos`]),
+    );
+    if (imageSummary.missingRequired.length) {
+      const missingImages = imageSummary.missingRequired.map((item) => item.title).slice(0, 6).join(", ");
+      return {
+        ok: false,
+        message: `Genomgången kan inte slutföras. Obligatoriska bildpunkter saknas: ${missingImages}.`,
+      };
     }
 
     const draft = await ensureDraftSubmission(property.id);
@@ -440,15 +557,15 @@ export async function completeHusstatusFormAction(formData: FormData) {
     });
 
     const overallStatus = typeof answers.overall_status === "string" ? answers.overall_status : undefined;
-    const calculatedRisk = riskFromAnswers(answers, overallStatus);
+    const calculatedRisk = riskFromAnswers(validationAnswers, overallStatus);
     const calculatedScore = scoreFromRisk(calculatedRisk, overallStatus);
     const healthExplanation = {
       risk: calculatedRisk,
-      heating: answers.heat_source_type ?? answers.hot_water_type ?? "Ej angivet",
+      heating: validationAnswers.heat_source_type ?? validationAnswers.hot_water_type ?? "Ej angivet",
       nextAction: answers.site_summary ?? answers.top_priority ?? "Rapporten behöver granskas",
       source: "rvm_husstatus_form",
       submissionId: submission.id,
-      sufficientData: entries.length >= Math.max(12, Math.round(rvmFieldCount * 0.15)),
+      sufficientData: validationEntries.length >= Math.max(8, Math.round(activeFieldCount(answers) * 0.15)),
     };
 
     await prisma.propertyHealthScore.upsert({
@@ -457,7 +574,9 @@ export async function completeHusstatusFormAction(formData: FormData) {
       create: { companyId: COMPANY_ID, propertyId: property.id, score: calculatedScore, explanation: healthExplanation },
     });
 
-    const createdComponents = await createComponentsFromRegister(property.id, answers.component_register_rows ?? answers.component_register);
+    const createdComponents = isSectionActive(answers, 19)
+      ? await createComponentsFromRegister(property.id, answers.component_register_rows ?? answers.component_register)
+      : 0;
     const report = await prisma.houseReport.create({
       data: {
         companyId: COMPANY_ID,
@@ -473,7 +592,9 @@ export async function completeHusstatusFormAction(formData: FormData) {
         nextControl: typeof answers.next_control === "string" ? answers.next_control : null,
         summary: {
           completedFields: entries.length,
+          activeFields: activeFieldCount(answers),
           totalFields: rvmFieldCount,
+          sectionStatuses: sectionStatuses(answers),
           source: "RVM Husstatus-formulär",
         },
       },

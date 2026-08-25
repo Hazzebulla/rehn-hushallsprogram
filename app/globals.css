@@ -31,11 +31,11 @@
   body {
     width: 100%;
     min-height: auto;
-    background: #050a0a !important;
+    background: #ffffff !important;
   }
 
   body {
-    color: var(--text);
+    color: #101717;
   }
 
   .noPrint,
@@ -51,7 +51,7 @@
     max-width: none;
     margin: 0;
     padding: 0;
-    background: #050a0a !important;
+    background: #ffffff !important;
   }
 
   .statusTop {
@@ -118,6 +118,49 @@
 
   .reportSectionHeader h2 {
     font-size: 24pt;
+    color: #101717 !important;
+  }
+
+  .reportSectionHeader span,
+  .sectionKicker,
+  .leadText,
+  .reportCard,
+  .statusMetric,
+  .houseStatusPanel,
+  .systemStatusGrid article,
+  .waterIssue,
+  .journalCadence article,
+  .driftGrid div,
+  .packageBanner,
+  .reportQualityBar {
+    background: #ffffff !important;
+    color: #101717 !important;
+    box-shadow: none !important;
+  }
+
+  .reportCard,
+  .statusMetric,
+  .houseStatusPanel,
+  .systemStatusGrid article,
+  .waterIssue,
+  .journalCadence article,
+  .driftGrid div,
+  .packageBanner,
+  .reportQualityBar,
+  table {
+    border-color: #b9c9c5 !important;
+  }
+
+  .customerPrintSheet,
+  .reportPage,
+  .reportDuo,
+  .threeCols,
+  .planLayout,
+  .waterIssue,
+  .journalCadence article,
+  .quoteRequestBox {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .reportCard,
@@ -1090,12 +1133,133 @@ td {
   gap: 18px;
 }
 
+.imageLibraryPanel {
+  display: grid;
+  gap: 18px;
+}
+
+.imageLibraryWorkspace {
+  display: grid;
+  gap: 18px;
+}
+
+.imageLibraryToolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.imageLibraryToolbar label {
+  display: grid;
+  gap: 8px;
+}
+
+.imageLibraryToolbar label span {
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.imageLibraryToolbar input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  background: rgba(4, 12, 12, 0.62);
+  color: white;
+  padding: 0 12px;
+  font: inherit;
+}
+
+.imageLibraryLayout {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.imageCustomerCards {
+  display: grid;
+  gap: 12px;
+}
+
+.imageCustomerCard {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-height: 178px;
+  padding: 14px;
+  border: 1px solid rgba(99, 199, 210, 0.22);
+  background: rgba(4, 12, 12, 0.46);
+  color: white;
+  text-align: left;
+  cursor: pointer;
+}
+
+.imageCustomerCard:hover,
+.imageCustomerCard.active {
+  border-color: var(--cyan);
+  box-shadow: inset 0 0 0 1px rgba(99, 199, 210, 0.22), 0 14px 28px rgba(0,0,0,0.22);
+}
+
+.imageCustomerCard span {
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.imageCustomerCard strong {
+  font-size: 18px;
+}
+
+.imageCustomerCard small {
+  color: var(--muted);
+}
+
+.imageCustomerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.imageCustomerMeta b,
+.imageCustomerMeta em,
+.customerGalleryStats span {
+  border: 1px solid var(--lineSoft);
+  background: rgba(99, 199, 210, 0.08);
+  color: white;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.imageCustomerThumbs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.imageCustomerThumbs img {
+  width: 100%;
+  height: 54px;
+  object-fit: cover;
+  border: 1px solid var(--lineSoft);
+  background: #061012;
+}
+
 .imageLibraryGroup {
   display: grid;
   gap: 14px;
   padding: 16px;
   border: 1px solid rgba(99, 199, 210, 0.22);
   background: rgba(4, 12, 12, 0.46);
+}
+
+.customerGalleryPanel {
+  min-width: 0;
 }
 
 .imageLibraryGroup header {
@@ -1127,6 +1291,12 @@ td {
 .imageLibraryGroup header small,
 .imageLibraryGrid figcaption small {
   color: var(--muted);
+}
+
+.customerGalleryStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .imageLibraryGrid,
@@ -1445,6 +1615,10 @@ td {
 
 .auditList span {
   color: var(--muted);
+}
+
+.reportList div {
+  grid-template-columns: 78px minmax(150px, 1fr) minmax(180px, 1.2fr) 150px 92px 118px;
 }
 
 .opsGrid {
@@ -2501,6 +2675,34 @@ td {
   gap: 12px;
 }
 
+.profileImportBox,
+.profileImportPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.profileImportBox {
+  padding: 12px;
+  border: 1px solid rgba(99, 199, 210, 0.22);
+  background: rgba(4, 12, 12, 0.48);
+}
+
+.profileImportBox button,
+.profileImportPanel button {
+  min-height: 38px;
+  border: 1px solid var(--cyan);
+  background: transparent;
+  color: var(--cyan);
+  padding: 0 14px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.profileImportPanel small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .customerForm label {
   display: grid;
   gap: 7px;
@@ -2511,7 +2713,8 @@ td {
 }
 
 .customerForm input,
-.customerForm select {
+.customerForm select,
+.customerForm textarea {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line);
@@ -2521,8 +2724,16 @@ td {
   outline: none;
 }
 
+.customerForm textarea {
+  min-height: 142px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .customerForm input:focus,
-.customerForm select:focus {
+.customerForm select:focus,
+.customerForm textarea:focus {
   border-color: var(--cyan);
   box-shadow: 0 0 0 2px rgba(99, 199, 210, 0.14);
 }
@@ -3065,11 +3276,95 @@ td {
   font-weight: 700;
 }
 
+.summaryHero {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 28px;
+  align-items: stretch;
+  margin-bottom: 28px;
+}
+
+.houseStatusPanel {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-height: 190px;
+  border: 1px solid #28505a;
+  background: #102126;
+  padding: 26px;
+}
+
+.houseStatusPanel span,
+.systemStatusGrid span,
+.emptyReportState,
+.waterIssue b,
+.journalCadence h3,
+.quoteRequestBox h3 {
+  color: var(--cyan);
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.houseStatusPanel strong {
+  color: white;
+  font-size: 58px;
+  line-height: 0.95;
+}
+
+.houseStatusPanel b {
+  color: var(--ok);
+  font-size: 18px;
+}
+
+.houseStatusPanel small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.systemStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 24px 0 24px;
+}
+
+.systemStatusGrid article {
+  border: 1px solid #28505a;
+  background: #0d1c20;
+  padding: 18px;
+}
+
+.systemStatusGrid strong {
+  display: block;
+  color: white;
+  font-size: 24px;
+  margin: 8px 0;
+}
+
+.systemStatusGrid small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.emptyReportState {
+  padding: 16px;
+  border: 1px dashed rgba(99, 199, 210, 0.34);
+  color: var(--muted);
+  background: rgba(99, 199, 210, 0.06);
+  margin: 18px 0;
+}
+
 .statusMetricGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 38px;
   margin: 28px 0 34px;
+}
+
+.statusMetricGrid.secondary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
 }
 
 .statusMetric {
@@ -3079,6 +3374,21 @@ td {
   align-content: center;
   border: 1px solid #28505a;
   background: #102126;
+}
+
+.statusMetric.compact {
+  min-height: 112px;
+  padding: 16px;
+}
+
+.statusMetric.compact .thinRing {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 6px;
+}
+
+.statusMetric.compact strong {
+  font-size: 24px;
 }
 
 .thinRing {
@@ -3421,6 +3731,56 @@ td {
   font-weight: 900;
 }
 
+.waterIssueGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.waterIssue {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #28505a;
+  background: #0d1c20;
+  padding: 20px;
+}
+
+.waterIssue header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.waterIssue header strong {
+  color: white;
+  font-size: 18px;
+}
+
+.waterIssue header span {
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  padding: 6px 9px;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.waterIssue.risk-hög header span {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.waterIssue.risk-låg header span {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.waterIssue p {
+  margin: 5px 0 0;
+  color: var(--text);
+}
+
 .packageBanner {
   margin-top: 40px;
   min-height: 118px;
@@ -3486,6 +3846,19 @@ td {
   font-weight: 900;
 }
 
+.verticalPlan div.priority-akut,
+.verticalPlan div.priority-hög {
+  border-color: var(--danger);
+}
+
+.verticalPlan div.priority-medel {
+  border-color: var(--warn);
+}
+
+.verticalPlan div.priority-låg {
+  border-color: var(--ok);
+}
+
 .sideStack {
   display: grid;
   gap: 26px;
@@ -3513,6 +3886,112 @@ td {
   color: var(--cyan);
   font-size: 11px;
   font-weight: 900;
+}
+
+.quoteRequestBox {
+  display: grid;
+  gap: 12px;
+  margin-top: 26px;
+  padding: 22px;
+  border: 1px solid #28505a;
+  background: #0d1c20;
+}
+
+.quoteRequestBox label {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(99, 199, 210, 0.18);
+}
+
+.quoteRequestBox small {
+  color: var(--muted);
+}
+
+.quoteRequestBox button {
+  min-height: 42px;
+  border: 1px solid var(--cyan);
+  background: var(--cyan);
+  color: #041011;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.journalCadence {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.journalCadence article {
+  border: 1px solid #28505a;
+  background: #0d1c20;
+  padding: 20px;
+}
+
+.journalCadence ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.reportSignatures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.reportSignatures article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 16px;
+  align-items: center;
+  padding: 18px;
+  border: 1px solid #28505a;
+  background: #0d1c20;
+}
+
+.reportSignatures article.valid {
+  border-color: rgba(112, 194, 132, 0.62);
+}
+
+.reportSignatures article.invalid {
+  border-color: rgba(245, 184, 64, 0.72);
+}
+
+.reportSignatures span {
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.reportSignatures article.invalid span {
+  color: #f8d890;
+}
+
+.reportSignatures strong {
+  display: block;
+  margin: 8px 0;
+  color: white;
+}
+
+.reportSignatures p {
+  margin: 4px 0;
+  color: var(--muted);
+}
+
+.reportSignatures img {
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  border: 1px solid rgba(99, 199, 210, 0.18);
+  background: #f7faf9;
 }
 
 .costBars i {
@@ -3657,6 +4136,327 @@ td {
   color: #041011;
   font-weight: 950;
   cursor: pointer;
+}
+
+.huscheckShell {
+  min-height: 100vh;
+  padding: 28px 16px;
+  background:
+    radial-gradient(circle at top right, rgba(72, 214, 230, 0.1), transparent 34%),
+    #02090d;
+  color: var(--text);
+}
+
+.huscheckCard,
+.huscheckComplete {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: clamp(18px, 4vw, 34px);
+  border: 1px solid rgba(70, 158, 176, 0.48);
+  border-radius: 8px;
+  background: rgba(8, 24, 31, 0.86);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.34);
+}
+
+.huscheckCard header {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.huscheckCard h1,
+.huscheckComplete h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(2rem, 5vw, 3.3rem);
+  line-height: 1;
+}
+
+.huscheckCard p,
+.huscheckComplete p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.huscheckProgress {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 8px 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.huscheckProgress span,
+.huscheckProgress b {
+  color: var(--cyan);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.huscheckProgress b {
+  justify-self: end;
+}
+
+.huscheckProgress i {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.huscheckProgress em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--cyan), #8ee1a0);
+}
+
+.huscheckStep {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.huscheckField,
+.huscheckChoices,
+.huscheckPhoto {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(70, 158, 176, 0.35);
+  border-radius: 8px;
+  background: rgba(3, 11, 15, 0.54);
+}
+
+.huscheckField.wide,
+.huscheckChoices,
+.huscheckPhoto,
+.huscheckHint {
+  grid-column: 1 / -1;
+}
+
+.huscheckField span,
+.huscheckChoices legend,
+.huscheckPhoto strong {
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.huscheckField input,
+.huscheckField textarea {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(70, 158, 176, 0.45);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font: inherit;
+}
+
+.huscheckField textarea {
+  padding: 10px;
+  resize: vertical;
+}
+
+.huscheckChoices {
+  border: 0;
+}
+
+.huscheckChoices div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.huscheckChoices button,
+.huscheckNav button,
+.huscheckPhoto label {
+  min-height: 46px;
+  border: 1px solid rgba(70, 158, 176, 0.5);
+  border-radius: 8px;
+  background: rgba(8, 24, 31, 0.82);
+  color: var(--text);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.huscheckChoices button {
+  padding: 0 14px;
+}
+
+.huscheckChoices button.active {
+  border-color: var(--cyan);
+  background: rgba(72, 214, 230, 0.16);
+  color: var(--cyan);
+}
+
+.huscheckHint,
+.huscheckMessage,
+.huscheckDisclaimer {
+  padding: 12px 14px;
+  border: 1px solid rgba(245, 184, 64, 0.38);
+  border-radius: 8px;
+  background: rgba(245, 184, 64, 0.08);
+  color: #f8d890 !important;
+}
+
+.huscheckPhoto small {
+  color: var(--muted);
+}
+
+.huscheckPhoto label {
+  display: grid;
+  place-items: center;
+  width: fit-content;
+  padding: 0 16px;
+  color: var(--cyan);
+}
+
+.huscheckPhoto input {
+  display: none;
+}
+
+.huscheckThumbs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.huscheckThumbs figure {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.huscheckThumbs img,
+.huscheckThumbs span {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid rgba(70, 158, 176, 0.35);
+  border-radius: 8px;
+}
+
+.huscheckThumbs span {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.huscheckThumbs button {
+  border: 0;
+  background: transparent;
+  color: #ffb9ad;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+}
+
+.huscheckNav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.huscheckNav button {
+  min-width: 140px;
+  padding: 0 18px;
+}
+
+.huscheckNav button:last-child {
+  border-color: var(--cyan);
+  background: var(--cyan);
+  color: #001016;
+}
+
+.huscheckNav button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.miniReportCounts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+
+.miniReportCounts article,
+.miniReportPoints article {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid rgba(70, 158, 176, 0.38);
+  border-radius: 8px;
+  background: rgba(3, 11, 15, 0.54);
+}
+
+.miniReportCounts span,
+.miniReportCounts small {
+  color: var(--muted);
+}
+
+.miniReportCounts strong {
+  color: var(--text);
+  font-size: 2rem;
+}
+
+.miniReportPoints {
+  display: grid;
+  gap: 12px;
+}
+
+.miniReportPoints article.green {
+  border-color: rgba(112, 194, 132, 0.58);
+}
+
+.miniReportPoints article.yellow {
+  border-color: rgba(245, 184, 64, 0.58);
+}
+
+.miniReportPoints article.red {
+  border-color: rgba(239, 68, 68, 0.68);
+}
+
+.huscheckAdminList {
+  display: grid;
+  gap: 10px;
+}
+
+.huscheckAdminHead,
+.huscheckAdminList article {
+  display: grid;
+  grid-template-columns: 1.1fr 1.3fr 0.8fr 1.2fr 0.4fr 0.45fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.huscheckAdminHead {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.huscheckAdminList article {
+  padding: 12px;
+  border: 1px solid rgba(70, 158, 176, 0.35);
+  border-radius: 8px;
+  background: rgba(3, 11, 15, 0.42);
+}
+
+.huscheckAdminList article strong,
+.huscheckAdminList article b {
+  color: var(--text);
 }
 
 .accessCard {
@@ -3851,6 +4651,66 @@ td {
   text-align: right;
 }
 
+.wideSearch {
+  width: 100%;
+  min-height: 42px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(99, 199, 210, 0.24);
+  background: #061012;
+  color: white;
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 800;
+}
+
+.productRegistryList {
+  display: grid;
+  gap: 10px;
+}
+
+.productRegistryList article {
+  display: grid;
+  grid-template-columns: 1.1fr 1.2fr 0.85fr 0.75fr;
+  gap: 14px;
+  align-items: center;
+  padding: 15px;
+  border: 1px solid var(--line);
+  background: rgba(4, 12, 12, 0.48);
+}
+
+.productRegistryList article.inactive {
+  opacity: 0.55;
+}
+
+.productRegistryList span,
+.productRegistryList strong,
+.productRegistryList small,
+.productRegistryList a {
+  display: block;
+}
+
+.productRegistryList span {
+  color: var(--cyan);
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.productRegistryList strong {
+  margin: 6px 0;
+  color: white;
+}
+
+.productRegistryList small,
+.productRegistryList a {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.compactForm {
+  margin-top: 14px;
+}
+
 .importWarnings {
   display: grid;
   gap: 8px;
@@ -3968,6 +4828,11 @@ td {
   color: var(--cyan);
 }
 
+.formSectionNav button.notApplicable {
+  border-color: rgba(245, 184, 64, 0.42);
+  background: rgba(245, 184, 64, 0.06);
+}
+
 .formSectionNav b {
   text-align: center;
 }
@@ -3978,9 +4843,212 @@ td {
   text-transform: uppercase;
 }
 
+.formSectionNav em {
+  grid-column: 2;
+  width: fit-content;
+  color: #f8d890;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
 .formSection > p {
   margin: 0 0 18px;
   color: var(--muted);
+}
+
+.sectionApplicability {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 18px;
+  padding: 12px;
+  border: 1px solid rgba(99, 199, 210, 0.22);
+  background: rgba(7, 22, 24, 0.52);
+}
+
+.sectionApplicability strong {
+  color: white;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.sectionApplicability div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sectionApplicability button {
+  min-height: 34px;
+  border: 1px solid rgba(99, 199, 210, 0.24);
+  background: rgba(11, 29, 32, 0.86);
+  color: #cceff1;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.sectionApplicability button.selected {
+  border-color: rgba(71, 217, 230, 0.78);
+  background: rgba(40, 202, 217, 0.18);
+  color: #ffffff;
+}
+
+.notApplicableNotice {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid rgba(245, 184, 64, 0.48);
+  background: rgba(245, 184, 64, 0.08);
+}
+
+.notApplicableNotice strong {
+  color: #f8d890;
+}
+
+.notApplicableNotice span {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.signatureGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.signatureCard {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(99, 199, 210, 0.28);
+  background: rgba(7, 22, 24, 0.52);
+}
+
+.signatureCard.signed {
+  border-color: rgba(112, 194, 132, 0.62);
+}
+
+.signatureCard.invalid {
+  border-color: rgba(245, 184, 64, 0.72);
+}
+
+.signatureCard header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.signatureCard header div {
+  display: grid;
+  gap: 4px;
+}
+
+.signatureCard header span {
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.signatureCard header strong {
+  color: white;
+  font-size: 15px;
+}
+
+.signatureCard header small,
+.signatureCard > small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.signatureCard header b {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid rgba(99, 199, 210, 0.28);
+  color: #cceff1;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.signatureCard.signed header b {
+  border-color: rgba(112, 194, 132, 0.62);
+  color: #8ee1a0;
+}
+
+.signatureCard.invalid header b {
+  border-color: rgba(245, 184, 64, 0.72);
+  color: #f8d890;
+}
+
+.signatureMeta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 10px;
+}
+
+.signatureMeta label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.signatureMeta input,
+.signatureMeta select {
+  min-height: 38px;
+  border: 1px solid rgba(99, 199, 210, 0.26);
+  background: #061012;
+  color: white;
+  padding: 0 10px;
+  font: inherit;
+  font-weight: 800;
+}
+
+.signatureCanvasWrap {
+  overflow: hidden;
+  border: 1px solid rgba(99, 199, 210, 0.34);
+  background: #f7faf9;
+}
+
+.signatureCanvasWrap canvas {
+  display: block;
+  max-width: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.signatureActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signatureActions button {
+  min-height: 34px;
+  border: 1px solid rgba(99, 199, 210, 0.32);
+  background: rgba(11, 29, 32, 0.86);
+  color: #cceff1;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.signatureActions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .rvmFieldGrid {
@@ -4050,6 +5118,31 @@ td {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0;
+}
+
+.quickPickRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quickPickRow button {
+  min-height: 30px;
+  border: 1px solid rgba(99, 199, 210, 0.24);
+  background: rgba(11, 29, 32, 0.86);
+  color: #cceff1;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.quickPickRow button:hover,
+.quickPickRow button.selected {
+  border-color: rgba(71, 217, 230, 0.72);
+  background: rgba(40, 202, 217, 0.18);
+  color: #ffffff;
 }
 
 .rvmFieldGrid textarea {
@@ -4170,6 +5263,236 @@ td {
   font-size: 11px;
 }
 
+.needsAttention {
+  border-color: rgba(239, 68, 68, 0.65) !important;
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.15);
+}
+
+.completionReview {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) 1.6fr auto;
+  gap: 18px;
+  align-items: start;
+  border-color: rgba(72, 214, 230, 0.45);
+}
+
+.completionReview.warning {
+  border-color: rgba(245, 184, 64, 0.7);
+}
+
+.completionReview.blocked {
+  border-color: rgba(239, 68, 68, 0.75);
+}
+
+.completionReview span,
+.imageChecklistPanel span {
+  color: var(--cyan);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.completionReview strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.completionReview small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.completionLists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.completionLists div {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.completionLists b {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.completionLists button,
+.textButton {
+  width: fit-content;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--cyan);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.completionLists button:hover,
+.textButton:hover {
+  color: var(--text);
+}
+
+.imageChecklistPanel {
+  margin-top: 18px;
+}
+
+.section25Images {
+  display: grid;
+  gap: 18px;
+  grid-column: 1 / -1;
+  margin-top: 18px;
+}
+
+.section25Images .imageChecklistPanel {
+  margin-top: 0;
+}
+
+.existingPhotosPanel {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(70, 158, 176, 0.38);
+  border-radius: 8px;
+  background: rgba(8, 24, 31, 0.55);
+}
+
+.existingPhotosPanel > p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.existingPhotosGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.existingPhotosGrid figure {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(70, 158, 176, 0.35);
+  border-radius: 8px;
+  background: rgba(3, 11, 15, 0.62);
+}
+
+.existingPhotosGrid img,
+.existingPhotosGrid .storedPhotoPlaceholder {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.existingPhotosGrid figcaption {
+  display: grid;
+  gap: 3px;
+  padding: 0 10px 10px;
+}
+
+.existingPhotosGrid strong {
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.existingPhotosGrid small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.imageChecklistGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.imageChecklistCard {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(70, 158, 176, 0.48);
+  border-radius: 8px;
+  background: rgba(8, 24, 31, 0.72);
+}
+
+.imageChecklistCard.required {
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.imageChecklistCard.complete {
+  border-color: rgba(112, 194, 132, 0.62);
+}
+
+.imageChecklistCard header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.imageChecklistCard header div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.imageChecklistCard strong {
+  color: var(--text);
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.imageChecklistCard small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.imageChecklistCard header b {
+  flex: 0 0 auto;
+  height: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 0.72rem;
+}
+
+.imageChecklistCard.complete header b {
+  color: #8ee1a0;
+}
+
+.imageChecklistCard label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.imageChecklistCard select {
+  min-height: 38px;
+  border: 1px solid rgba(70, 158, 176, 0.45);
+  border-radius: 8px;
+  background: rgba(3, 11, 15, 0.9);
+  color: var(--text);
+  font: inherit;
+  text-transform: none;
+}
+
 .checkGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -4235,9 +5558,9 @@ td {
 .componentFormHead,
 .componentFormRow {
   display: grid;
-  grid-template-columns: 36px 170px 150px 135px 130px 130px 130px 90px 120px 100px 150px 110px 180px;
+  grid-template-columns: 36px 160px 150px 135px 130px 130px 190px 130px 90px 120px 100px 150px 110px 180px;
   gap: 6px;
-  min-width: 1652px;
+  min-width: 1911px;
   align-items: center;
 }
 
@@ -4563,8 +5886,47 @@ td {
 
   .componentFormHead,
   .componentFormRow {
-    grid-template-columns: 32px 140px 132px 128px 116px 116px 118px 76px 108px 92px 132px 96px 160px;
-    min-width: 1546px;
+    grid-template-columns: 32px 136px 128px 124px 112px 112px 176px 118px 76px 108px 92px 132px 96px 160px;
+    min-width: 1702px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .adminWork {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .adminTop {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adminTop .portalActions {
+    justify-content: start;
+  }
+
+  .imageLibraryLayout {
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  }
+
+  .imageLibraryGrid,
+  .portalImageLibrary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summaryHero,
+  .systemStatusGrid,
+  .waterIssueGrid,
+  .journalCadence {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .imageLibraryGroup header {
+    display: grid;
+  }
+
+  .portalActions.compact {
+    justify-content: start;
   }
 }
 
@@ -4593,6 +5955,32 @@ td {
   .imageLibraryGrid,
   .portalImageLibrary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .imageLibraryToolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .imageLibraryLayout {
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .imageCustomerCard {
+    min-height: 166px;
+    padding: 12px;
+  }
+
+  .imageCustomerCard strong {
+    font-size: 16px;
+  }
+
+  .imageLibraryGroup {
+    padding: 14px;
+  }
+
+  .imageLibraryGroup header {
+    display: grid;
   }
 }
 
@@ -4640,6 +6028,15 @@ td {
   .coverFacts,
   .summary,
   .metricGrid,
+  .summaryHero,
+  .systemStatusGrid,
+  .waterIssueGrid,
+  .journalCadence,
+  .quoteRequestBox label,
+  .signatureGrid,
+  .signatureMeta,
+  .reportSignatures,
+  .reportSignatures article,
   .split,
   .bottomGrid,
   .reportHeader,
@@ -4663,8 +6060,13 @@ td {
   .userList article,
   .propertyList,
   .componentRegistry article,
+  .productRegistryList article,
   .importMapping,
   .formToolbar,
+  .completionReview,
+  .huscheckStep,
+  .huscheckAdminHead,
+  .huscheckAdminList article,
   .husstatusFormShell,
   .rvmFieldGrid,
   .checkGrid,
@@ -4691,6 +6093,18 @@ td {
   .securityFlow,
   .roleMatrix,
   .foundationList div {
+    grid-template-columns: 1fr;
+  }
+
+  .imageChecklistGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .existingPhotosGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .completionLists {
     grid-template-columns: 1fr;
   }
 
@@ -4831,9 +6245,68 @@ td {
     display: grid;
   }
 
+  .imageLibraryToolbar,
+  .imageLibraryLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .imageCustomerCards {
+    grid-template-columns: 1fr;
+  }
+
+  .imageCustomerCard {
+    min-height: auto;
+  }
+
   .imageLibraryGrid,
   .portalImageLibrary,
+  .existingPhotosGrid,
+  .imageChecklistGrid,
   .photoPreviewGrid {
     grid-template-columns: 1fr;
+  }
+
+  .completionReview {
+    grid-template-columns: 1fr;
+  }
+
+  .imageChecklistCard header {
+    display: grid;
+  }
+
+  .huscheckShell {
+    padding: 12px;
+  }
+
+  .huscheckCard,
+  .huscheckComplete {
+    padding: 18px;
+  }
+
+  .huscheckStep,
+  .miniReportCounts {
+    grid-template-columns: 1fr;
+  }
+
+  .huscheckChoices div {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .huscheckChoices button,
+  .huscheckNav button {
+    width: 100%;
+  }
+
+  .huscheckNav {
+    display: grid;
+  }
+
+  .huscheckThumbs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .huscheckAdminHead {
+    display: none;
   }
 }

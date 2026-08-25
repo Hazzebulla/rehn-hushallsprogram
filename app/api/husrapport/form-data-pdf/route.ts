@@ -20,6 +20,14 @@ type PhotoValue = {
   createdAt?: string;
 };
 
+type SignatureValue = {
+  label?: string;
+  signedBy?: string;
+  role?: string;
+  signedAt?: string;
+  imageDataUrl?: string;
+};
+
 type PdfState = {
   doc: PDFDocument;
   page: PDFPage;
@@ -28,6 +36,8 @@ type PdfState = {
   y: number;
   pageNo: number;
 };
+
+type SectionStatusMap = Record<string, "active" | "not_applicable">;
 
 function answerValue(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
@@ -85,6 +95,32 @@ function extractPhotoLines(value: unknown) {
   });
 }
 
+function extractSignatures(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value as Record<string, SignatureValue>)
+    .map(([id, signature]) => ({ id, ...signature }))
+    .filter((signature) => signature.imageDataUrl && signature.signedBy);
+}
+
+async function drawSignatureImage(state: PdfState, dataUrl: string) {
+  const match = dataUrl.match(/^data:image\/png;base64,(.+)$/);
+  if (!match) return;
+  const image = await state.doc.embedPng(Buffer.from(match[1], "base64"));
+  const maxWidth = 190;
+  const maxHeight = 72;
+  const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+  const width = image.width * scale;
+  const height = image.height * scale;
+  ensureSpace(state, height + 8);
+  state.page.drawImage(image, {
+    x: MARGIN + 10,
+    y: state.y - height,
+    width,
+    height,
+  });
+  state.y -= height + 8;
+}
+
 function formatComponentRows(value: unknown) {
   if (!Array.isArray(value)) return "";
 
@@ -123,6 +159,15 @@ function formatAnswer(value: unknown) {
   }
 
   return cleanText(value) || "Ej ifyllt";
+}
+
+function sectionStatuses(answers: Map<string, unknown>): SectionStatusMap {
+  const value = answers.get("section_statuses");
+  return value && typeof value === "object" && !Array.isArray(value) ? value as SectionStatusMap : {};
+}
+
+function isSectionActive(statuses: SectionStatusMap, sectionId: number) {
+  return statuses[String(sectionId)] !== "not_applicable";
 }
 
 function wrapLine(text: string, font: PDFFont, size: number, maxWidth: number) {
@@ -212,10 +257,17 @@ async function createPdfBytes(args: {
   drawText(state, `Underlag: ${args.submissionLabel}`, { size: 8, color: rgb(0.62, 0.8, 0.82) });
   drawText(state, `Export: ${new Date().toLocaleString("sv-SE")}`, { size: 8, color: rgb(0.62, 0.8, 0.82), gap: 8 });
   drawDivider(state);
+  const statuses = sectionStatuses(args.answers);
 
   for (const section of rvmSections) {
     drawText(state, `${section.id}. ${section.title}`, { size: 13, font: bold, color: rgb(0.2, 0.84, 0.9), gap: 3 });
     if (section.description) drawText(state, section.description, { size: 8, color: rgb(0.62, 0.8, 0.82), gap: 7 });
+
+    if (!isSectionActive(statuses, section.id)) {
+      drawText(state, "Finns ej i fastigheten", { size: 9, font: bold, color: rgb(0.98, 0.76, 0.36), indent: 10, gap: 8 });
+      drawDivider(state);
+      continue;
+    }
 
     for (const field of section.fields) {
       const value = args.answers.get(field.key);
@@ -235,6 +287,17 @@ async function createPdfBytes(args: {
       }
     }
 
+    drawDivider(state);
+  }
+
+  const signatureList = extractSignatures(args.answers.get("signatures"));
+  if (signatureList.length) {
+    drawText(state, "Digitala signaturer", { size: 13, font: bold, color: rgb(0.2, 0.84, 0.9), gap: 5 });
+    for (const signature of signatureList) {
+      drawText(state, `Signerad av: ${cleanText(signature.signedBy)}`, { size: 9, font: bold, color: rgb(0.98, 1, 1), gap: 1 });
+      drawText(state, `Roll: ${cleanText(signature.role)} · Datum: ${signature.signedAt ? new Date(signature.signedAt).toLocaleString("sv-SE") : "Ej angivet"}`, { size: 8, color: rgb(0.62, 0.8, 0.82), indent: 10, gap: 3 });
+      await drawSignatureImage(state, String(signature.imageDataUrl));
+    }
     drawDivider(state);
   }
 
@@ -301,4 +364,5 @@ export async function GET(request: NextRequest) {
     },
   });
 }
+
 

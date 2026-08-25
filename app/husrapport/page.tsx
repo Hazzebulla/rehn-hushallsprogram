@@ -20,6 +20,22 @@ type JournalDoc = {
   rows: string[];
 };
 
+type ReportSignature = {
+  id: string;
+  label: string;
+  signedBy: string;
+  role: string;
+  signedAt: string;
+  imageDataUrl: string;
+  valid: boolean;
+};
+
+type SystemStatus = {
+  label: string;
+  score: number;
+  status: string;
+};
+
 type WeatherVm = {
   value: string;
   source: string;
@@ -107,6 +123,10 @@ type ReportData = {
   dataSufficient: boolean;
   leadText: string;
   statusCards: string[][];
+  healthScoreLabel: string;
+  healthStatusText: string;
+  riskIndexLabel: string;
+  systemStatuses: SystemStatus[];
   profile: string[][];
   heatRegister: string[][];
   drift: string[][];
@@ -121,6 +141,7 @@ type ReportData = {
   priorityRows: string[][];
   packageCards: string[][];
   journalDocs: JournalDoc[];
+  signatures: ReportSignature[];
   topRisks: string[][];
   recommendedActions: string[];
   riskOverview: Array<[string, number]>;
@@ -163,21 +184,22 @@ function answerValue(value: unknown) {
 }
 
 function statusLabel(score: number) {
-  if (score >= 82) return "God";
-  if (score >= 68) return "Normal";
-  if (score >= 52) return "Brister att planera";
-  if (score >= 38) return "Snar åtgärd";
-  return "Akut utredning";
+  if (score >= 80) return "Bra";
+  if (score >= 60) return "Bör följas upp";
+  if (score >= 40) return "Åtgärder rekommenderas";
+  return "Förhöjd risk";
 }
 
 function priorityFromStatus(status: string, riskLevel: string) {
+  if (status === "RED" && riskLevel === "HIGH") return "Akut";
   if (status === "RED" || riskLevel === "HIGH") return "Hög";
   if (status === "ORANGE" || status === "YELLOW" || riskLevel === "MEDIUM") return "Medel";
-  return "Låg";
+  if (status === "GREEN" || riskLevel === "LOW") return "Låg";
+  return "Underhåll";
 }
 
 function costLabel(costCents: number) {
-  if (!costCents) return "Uppgift saknas";
+  if (!costCents) return "Pris ej fastställt";
   return `${Math.round(costCents / 100).toLocaleString("sv-SE")} kr`;
 }
 
@@ -186,13 +208,15 @@ function krLabel(costCents: number) {
 }
 
 function krRangeLabel(lowCents: number, highCents: number) {
-  if (!lowCents && !highCents) return "";
+  if (!lowCents && !highCents) return "Pris ej fastställt";
   if (lowCents === highCents) return krLabel(lowCents);
-  return `${krLabel(lowCents)}-${krLabel(highCents)}`;
+  return `${krLabel(lowCents)}–${krLabel(highCents).replace(" kr", "")} kr`;
 }
 
 function numberAnswer(answers: Map<string, string>, key: string) {
-  const value = Number(String(answers.get(key) ?? "").replace(",", ".").replace(/[^\d.-]/g, ""));
+  const raw = String(answers.get(key) ?? "").trim();
+  if (!raw) return undefined;
+  const value = Number(raw.replace(",", ".").replace(/[^\d.-]/g, ""));
   return Number.isFinite(value) ? value : undefined;
 }
 
@@ -202,6 +226,126 @@ function textAnswer(answers: Map<string, string>, key: string) {
 
 function hasAnyAnswer(answers: Map<string, string>, keys: string[]) {
   return keys.some((key) => textAnswer(answers, key).length > 0);
+}
+
+type SectionStatusMap = Record<string, "active" | "not_applicable">;
+
+const reportFieldSectionByKey = new Map(
+  rvmSections.flatMap((section) => section.fields.map((field) => [field.key, section.id] as const)),
+);
+
+function sectionStatusMap(rawAnswers: Map<string, unknown>): SectionStatusMap {
+  const value = rawAnswers.get("section_statuses");
+  return value && typeof value === "object" && !Array.isArray(value) ? value as SectionStatusMap : {};
+}
+
+function isReportSectionActive(statuses: SectionStatusMap, sectionId: number) {
+  return statuses[String(sectionId)] !== "not_applicable";
+}
+
+function answerKeyIsActive(statuses: SectionStatusMap, key: string) {
+  if (key === "section_statuses" || key === "image_checklist_statuses") return false;
+  const baseKey = key.replace(/__source$|__photos$/, "");
+  const sectionId = reportFieldSectionByKey.get(baseKey);
+  return sectionId ? isReportSectionActive(statuses, sectionId) : true;
+}
+
+function notApplicableSectionLabels(statuses: SectionStatusMap) {
+  return rvmSections
+    .filter((section) => !isReportSectionActive(statuses, section.id))
+    .map((section) => `${section.id}. ${section.title}`);
+}
+
+function lightweightReportValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(lightweightReportValue);
+  if (!value || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  if (typeof record.dataUrl === "string" || typeof record.imageDataUrl === "string") {
+    return { ...record, dataUrl: "", imageDataUrl: "" };
+  }
+  return Object.fromEntries(Object.entries(record).map(([key, item]) => [key, lightweightReportValue(item)]));
+}
+
+function stableReportStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableReportStringify).join(",")}]`;
+  if (!value || typeof value !== "object") return JSON.stringify(value ?? "");
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableReportStringify(item)}`)
+    .join(",")}}`;
+}
+
+function simpleReportHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function reportSignatureHashFromRaw(rawAnswers: Map<string, unknown>, statuses: SectionStatusMap) {
+  const significant = Object.fromEntries(
+    Array.from(rawAnswers.entries())
+      .filter(([key]) =>
+        key === "section_statuses"
+        || (key !== "signatures" && key !== "image_checklist_statuses" && answerKeyIsActive(statuses, key)),
+      )
+      .map(([key, value]) => [key, lightweightReportValue(value)]),
+  );
+  return simpleReportHash(stableReportStringify(significant));
+}
+
+function reportSignatures(rawAnswers: Map<string, unknown>, currentHash: string): ReportSignature[] {
+  const value = rawAnswers.get("signatures");
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value as Record<string, Record<string, unknown>>)
+    .map(([id, item]) => ({
+      id,
+      label: String(item.label ?? id),
+      signedBy: String(item.signedBy ?? ""),
+      role: String(item.role ?? ""),
+      signedAt: String(item.signedAt ?? ""),
+      imageDataUrl: String(item.imageDataUrl ?? ""),
+      valid: String(item.signedHash ?? "") === currentHash,
+    }))
+    .filter((signature) => signature.imageDataUrl && signature.signedBy);
+}
+
+function displayText(value: string | undefined | null, fallback = "Ej kontrollerad") {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function measurementLabel(value: number | undefined, unit: string) {
+  return value === undefined ? "Ej uppmätt" : `${String(value).replace(".", ",")} ${unit}`;
+}
+
+function formatMeasurement(value: number | undefined, unit: string) {
+  return value === undefined ? "Ej uppmätt" : `${value.toFixed(1).replace(".", ",")} ${unit}`;
+}
+
+function generateSummary(args: {
+  health: number;
+  systemStatuses: SystemStatus[];
+  topRisks: string[][];
+  recommendedActions: string[];
+  dataSufficient: boolean;
+}) {
+  if (!args.dataSufficient) {
+    return "Underlaget är ännu inte tillräckligt för en säker kundbedömning. Komplettera formulär, mätvärden och komponentstatus innan rapporten används som beslutsunderlag.";
+  }
+
+  const weakSystems = args.systemStatuses
+    .filter((system) => system.score < 70)
+    .map((system) => system.label.toLowerCase());
+  const systemsText = weakSystems.length
+    ? `förbättringspunkter inom ${weakSystems.slice(0, 3).join(", ")}`
+    : "inga tydliga systemområden med förhöjd risk i registrerat underlag";
+  const actions = args.recommendedActions.slice(0, 3).map((item) => item.toLowerCase());
+  const actionText = actions.length ? ` De viktigaste nästa stegen är ${actions.join(", ")}.` : "";
+
+  return `Fastigheten har Husstatus ${args.health}/100 (${statusLabel(args.health)}) och ${systemsText}.${actionText}`;
 }
 
 const reportAnswerFieldKeys = new Set(rvmSections.flatMap((section) => section.fields.map((field) => field.key)));
@@ -411,6 +555,10 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
           ["Teknisk status", "Ej bedömd", "Systemet gissar inte", "gold"],
           ["Publicering", "Stängd", "Kund ser inget ännu", "gold"],
         ],
+        healthScoreLabel: "Ej bedömd",
+        healthStatusText: "Underlag saknas",
+        riskIndexLabel: "Ej beräknat",
+        systemStatuses: [],
         profile: [],
         heatRegister: [],
         drift: [],
@@ -425,6 +573,7 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
         priorityRows: [],
         packageCards: [],
         journalDocs: [],
+        signatures: [],
         topRisks: [],
         recommendedActions: ["Slutför RVM Husstatus-formuläret för fastigheten."],
         riskOverview: [],
@@ -459,19 +608,32 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
           source: `${liveOutdoor.provider} live, ${liveOutdoor.place}${liveOutdoor.measuredAt ? ` ${liveOutdoor.measuredAt.replace("T", " ")}` : ""}`,
         }
       : undefined;
-    const latestRawAnswers = new Map<string, unknown>(
+    const latestRawAnswersAll = new Map<string, unknown>(
       latestSubmission?.answers.map((answer) => [answer.fieldKey, rawAnswerValue(answer.value)]) ?? [],
     );
-    const latestAnswers = new Map<string, string>(
+    const sectionStatuses = sectionStatusMap(latestRawAnswersAll);
+    const currentSignatureHash = reportSignatureHashFromRaw(latestRawAnswersAll, sectionStatuses);
+    const signatures = reportSignatures(latestRawAnswersAll, currentSignatureHash);
+    const inactiveSections = notApplicableSectionLabels(sectionStatuses);
+    const latestRawAnswers = new Map(
+      Array.from(latestRawAnswersAll.entries()).filter(([key]) => answerKeyIsActive(sectionStatuses, key)),
+    );
+    const latestAnswersAll = new Map<string, string>(
       latestSubmission?.answers.map((answer) => [answer.fieldKey, answerValue(answer.value)]) ?? [],
     );
+    const latestAnswers = new Map(
+      Array.from(latestAnswersAll.entries()).filter(([key]) => answerKeyIsActive(sectionStatuses, key)),
+    );
+    const activeReportFieldCount = rvmSections
+      .filter((section) => isReportSectionActive(sectionStatuses, section.id))
+      .reduce((sum, section) => sum + section.fields.length, 0);
     const answeredFields = Array.from(latestAnswers.entries()).filter(([key, value]) => {
       if (key.endsWith("__source") || key.endsWith("__photos")) return false;
       return reportAnswerFieldKeys.has(key) && value.trim().length > 0;
     }).length;
-    const formProgress = Math.min(100, Math.round((answeredFields / rvmFieldCount) * 100));
+    const formProgress = Math.min(100, Math.round((answeredFields / Math.max(activeReportFieldCount, 1)) * 100));
     const hasCompletedForm = latestSubmission?.status === "SUBMITTED" || latestSubmission?.status === "COMPLETED";
-    const dataSufficient = answeredFields >= 12;
+    const dataSufficient = answeredFields >= Math.max(8, Math.round(activeReportFieldCount * 0.12));
     const explanation = asRecord(property.healthScore?.explanation);
     const answerRisk = dataSufficient ? riskFromAnswerMap(latestAnswers) : undefined;
     const risk = dataSufficient ? Number(answerRisk ?? explanation.risk ?? 28) : 0;
@@ -518,13 +680,7 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
           label,
           Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
         ] as [string, number])
-      : ([
-          ["Värmesystem", Math.max(18, risk)],
-          ["Tappvatten", 28],
-          ["Avlopp", 24],
-          ["Vattensäkerhet", 36],
-        ] as Array<[string, number]>);
-
+      : [];
     const topRisks: string[][] = components.length
       ? components
           .slice()
@@ -539,26 +695,25 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
     const quarterlyControlEnabled = /^(ja|erbjuds)$/i.test(quarterlyControl);
     const recommendedActions = [
       ...(topRisks.length
-        ? topRisks.map(([name, prio]) => `${prio === "Hög" ? "Åtgärda" : "Följ upp"} ${name}`)
+        ? topRisks.map(([name, prio]) => `${prio === "Akut" || prio === "Hög" ? "Åtgärda" : "Följ upp"} ${name}`)
         : [nextAction]),
       ...(annualControlEnabled ? ["Lägg in årlig kontroll av värme, tryck, filter och säkerhetsfunktion"] : []),
       ...(quarterlyControlEnabled ? [`Skicka kvartalsvis kontrollöversyn${deliveryMethod ? ` via ${deliveryMethod.toLowerCase()}` : ""}`] : []),
     ];
 
     const rawDriftRows: Array<[string, string | number | undefined, string] | undefined> = [
-      liveWeather ? ["Utetemp live", liveWeather.value, ""] : undefined,
-      ["Utetemp kontroll", numberAnswer(latestAnswers, "outdoor_temp_c"), "°C"],
-      ["Innetemp", textAnswer(latestAnswers, "residents_temp") || undefined, ""],
-      ["Framledning", numberAnswer(latestAnswers, "supply_temp_c"), "°C"],
-      ["Retur", numberAnswer(latestAnswers, "return_temp_c"), "°C"],
-      ["Brine in", numberAnswer(latestAnswers, "brine_in_c"), "°C"],
-      ["Brine ut", numberAnswer(latestAnswers, "brine_out_c"), "°C"],
-      ["VV nära", numberAnswer(latestAnswers, "nearest_tap_c"), "°C"],
-      ["VV längst bort", numberAnswer(latestAnswers, "furthest_tap_c"), "°C"],
+      ["Utetemp live", liveWeather?.value ?? "Ej uppmätt", ""],
+      ["Utetemp kontroll", measurementLabel(numberAnswer(latestAnswers, "outdoor_temp_c"), "°C"), ""],
+      ["Innetemp", textAnswer(latestAnswers, "residents_temp") || "Ej uppmätt", ""],
+      ["Framledning", measurementLabel(numberAnswer(latestAnswers, "supply_temp_c"), "°C"), ""],
+      ["Retur", measurementLabel(numberAnswer(latestAnswers, "return_temp_c"), "°C"), ""],
+      ["Brine in", measurementLabel(numberAnswer(latestAnswers, "brine_in_c"), "°C"), ""],
+      ["Brine ut", measurementLabel(numberAnswer(latestAnswers, "brine_out_c"), "°C"), ""],
+      ["VV nära", measurementLabel(numberAnswer(latestAnswers, "nearest_tap_c"), "°C"), ""],
+      ["VV längst bort", measurementLabel(numberAnswer(latestAnswers, "furthest_tap_c"), "°C"), ""],
     ];
     const driftRows = rawDriftRows
       .filter((row): row is [string, string | number | undefined, string] => Boolean(row))
-      .filter(([, value]) => value !== undefined && String(value).trim().length > 0)
       .map(([label, value, unit]) => [String(label), `${value}${unit ? ` ${unit}` : ""}`]);
 
     const supply = numberAnswer(latestAnswers, "supply_temp_c");
@@ -570,18 +725,15 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
     const electricity = numberAnswer(latestAnswers, "electricity_kwh");
     const waterUse = numberAnswer(latestAnswers, "water_m3");
     const energyTrend: BarDatum[] = [
-      supply !== undefined ? { label: "Framledning", value: Math.max(4, Math.min(100, supply * 1.8)) } : undefined,
-      ret !== undefined ? { label: "Retur", value: Math.max(4, Math.min(100, ret * 1.8)) } : undefined,
-      brineIn !== undefined ? { label: "Brine in", value: Math.max(4, Math.min(100, (brineIn + 20) * 3)) } : undefined,
-      brineOut !== undefined ? { label: "Brine ut", value: Math.max(4, Math.min(100, (brineOut + 20) * 3)) } : undefined,
       electricity !== undefined ? { label: "El kWh", value: Math.max(4, Math.min(100, electricity / 260)) } : undefined,
       waterUse !== undefined ? { label: "Vatten", value: Math.max(4, Math.min(100, waterUse / 2.5)) } : undefined,
     ].filter(Boolean) as BarDatum[];
 
     const technicalAssessment = [
-      supply !== undefined && ret !== undefined ? `Temperaturdifferens värme: ${Math.abs(supply - ret).toFixed(1).replace(".", ",")} °C.` : "",
-      brineIn !== undefined && brineOut !== undefined ? `Köldbärardifferens: ${Math.abs(brineIn - brineOut).toFixed(1).replace(".", ",")} °C.` : "",
-      vvNear !== undefined && vvFar !== undefined ? `Varmvattenfall mellan nära och längst bort: ${Math.abs(vvNear - vvFar).toFixed(1).replace(".", ",")} °C.` : "",
+      `Temperaturdifferens värme: ${supply !== undefined && ret !== undefined ? formatMeasurement(Math.abs(supply - ret), "°C") : "Ej uppmätt"}.`,
+      `Köldbärardifferens: ${brineIn !== undefined && brineOut !== undefined ? formatMeasurement(Math.abs(brineIn - brineOut), "°C") : "Ej uppmätt"}.`,
+      `Varmvattenfall nära/längst bort: ${vvNear !== undefined && vvFar !== undefined ? formatMeasurement(Math.abs(vvNear - vvFar), "°C") : "Ej uppmätt"}.`,
+      energyTrend.length ? "Energioptimeringspotential: Bedömd från registrerad energi-/vattendata." : "Energioptimeringspotential: Ej bedömd.",
       textAnswer(latestAnswers, "energy_notes"),
       textAnswer(latestAnswers, "service_notes"),
     ].filter(Boolean);
@@ -607,6 +759,16 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
         return [label, observation, riskWord(observation), recommendation, waterEstimate(label, observation)];
       })
       .filter(Boolean) as string[][];
+    const waterSystemScore = waterCards.length
+      ? Math.max(20, 100 - Math.round(waterCards.reduce((sum, [, riskName]) => sum + (riskName === "Hög" ? 68 : riskName === "Medel" ? 42 : 18), 0) / waterCards.length))
+      : undefined;
+    const systemStatuses: SystemStatus[] = [
+      ...riskOverview.map(([label, riskValue]) => {
+        const score = Math.max(0, Math.min(100, 100 - riskValue));
+        return { label, score, status: statusLabel(score) };
+      }),
+      ...(waterSystemScore !== undefined ? [{ label: "Vattensäkerhet", score: waterSystemScore, status: statusLabel(waterSystemScore) }] : []),
+    ];
     const waterCost = waterItems.reduce((sum, item) => sum + estimateMiddleCents(item[4]), 0);
     const waterPackage = waterItems.length && waterCost
       ? ["RVM Vattensäkring - rekommenderat startpaket", krRangeLabel(Math.round(waterCost * 0.7), Math.round(waterCost * 1.15))]
@@ -667,6 +829,9 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
       technicalAssessment.length
         ? { title: "Egenkontroll", rows: technicalAssessment.slice(0, 4) }
         : undefined,
+      inactiveSections.length
+        ? { title: "Finns ej i fastigheten", rows: inactiveSections.slice(0, 10) }
+        : undefined,
       hasAnyAnswer(latestAnswers, ["service_advice", "rvm_service_agreement", "annual_control", "quarterly_control", "quarterly_delivery", "next_control", "followup_owner"])
         ? { title: "Husjournal", rows: [textAnswer(latestAnswers, "service_advice"), annualControlEnabled ? "Årlig kontroll ska göras" : "", quarterlyControlEnabled ? `Kvartalsvis kontrollöversyn${deliveryMethod ? ` via ${deliveryMethod.toLowerCase()}` : ""}` : "", textAnswer(latestAnswers, "rvm_service_agreement"), textAnswer(latestAnswers, "next_control"), textAnswer(latestAnswers, "followup_owner")].filter(Boolean) }
         : undefined,
@@ -690,16 +855,17 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
       liveWeather,
       hasCompletedForm,
       dataSufficient,
-      leadText: dataSufficient
-        ? String(latestAnswers.get("site_summary") || explanation.summary || (hasCompletedForm
-            ? "Rapporten bygger på senast slutfört RVM Husstatus-formulär. Saknade uppgifter markeras som uppgift saknas och ska inte gissas."
-            : "Rapporten bygger på autosparat arbetsunderlag från formuläret. Granska och slutför formuläret innan rapporten publiceras till kund."))
-        : "Fyll i fler centrala formulärfält innan risk, teknisk status och åtgärdsplan används som beslutsunderlag.",
+      leadText: String(latestAnswers.get("site_summary") || explanation.summary || generateSummary({
+        health,
+        systemStatuses,
+        topRisks,
+        recommendedActions,
+        dataSufficient,
+      })),
       statusCards: dataSufficient
         ? [
-            ["Totalt riskindex", `${risk}%`, risk >= 60 ? "Hög risk" : risk >= 35 ? "Medel risk" : "Låg risk", "cyan"],
+            ["Riskindex", `${risk}%`, risk >= 60 ? "Hög risk" : risk >= 35 ? "Medel risk" : "Låg risk", "gold"],
             ["Energipotential", latestAnswers.get("energy_notes") || latestAnswers.get("electricity_kwh") ? "Bedömd" : "Ej kontrollerat", "Från formulär", "cyan"],
-            ["Teknisk status", `${health}%`, statusLabel(health), "green"],
             ["Prioriterade åtgärder", String(Math.max(highPriority, recommendedActions.length)), "Aktuella", "gold"],
           ]
         : [
@@ -708,15 +874,19 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
             ["Riskindex", "Ej beräknat", "Underlag saknas", "gold"],
             ["Teknisk status", "Ej bedömd", "Systemet gissar inte", "gold"],
           ],
+      healthScoreLabel: dataSufficient ? `${health}/100` : "Ej bedömd",
+      healthStatusText: dataSufficient ? statusLabel(health) : "Underlag saknas",
+      riskIndexLabel: dataSufficient ? `${risk}%` : "Ej beräknat",
+      systemStatuses,
       profile: [
-        ["Kund", property.customer?.name ?? "Uppgift saknas"],
-        ["Fastighet", property.propertyNo ?? "Uppgift saknas"],
+        ["Kund", displayText(property.customer?.name, "Ej kontrollerad")],
+        ["Fastighet", displayText(property.propertyNo, "Ej kontrollerad")],
         ["Adress", property.address],
-        ["Byggår", property.buildYear?.toString() ?? latestAnswers.get("build_year") ?? "Uppgift saknas"],
+        ["Byggår", property.buildYear?.toString() ?? displayText(latestAnswers.get("build_year"), "Ej kontrollerad")],
         ["Värmekälla", heating],
-        ["Omfattning", latestAnswers.get("scope") ?? "Uppgift saknas"],
-        ["Grundläggning", latestAnswers.get("foundation") ?? "Uppgift saknas"],
-        ["Vatten / avlopp", latestAnswers.get("water_source") ?? "Uppgift saknas"],
+        ["Omfattning", displayText(latestAnswers.get("scope"), "Ej kontrollerad")],
+        ["Grundläggning", displayText(latestAnswers.get("foundation"), "Ej kontrollerad")],
+        ["Vatten / avlopp", displayText(latestAnswers.get("water_source"), "Ej kontrollerad")],
       ],
       heatRegister: componentRows,
       drift: driftRows,
@@ -731,6 +901,7 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
       priorityRows,
       packageCards,
       journalDocs,
+      signatures,
       topRisks,
       recommendedActions,
       riskOverview,
@@ -751,6 +922,10 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
         ["Teknisk status", "Ej bedömd", "Systemet gissar inte", "gold"],
         ["Publicering", "Stängd", "Kund ser inget ännu", "gold"],
       ],
+      healthScoreLabel: "Ej bedömd",
+      healthStatusText: "Underlag saknas",
+      riskIndexLabel: "Ej beräknat",
+      systemStatuses: [],
       profile: [],
       heatRegister: [],
       drift: [],
@@ -765,6 +940,7 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
       priorityRows: [],
       packageCards: [],
       journalDocs: [],
+      signatures: [],
       topRisks: [],
       recommendedActions: ["Kontrollera databasanslutningen och försök igen."],
       riskOverview: [],
@@ -843,6 +1019,10 @@ export default async function HusrapportPage({
     dataSufficient,
     leadText,
     statusCards,
+    healthScoreLabel,
+    healthStatusText,
+    riskIndexLabel,
+    systemStatuses,
     profile,
     heatRegister,
     drift,
@@ -857,6 +1037,7 @@ export default async function HusrapportPage({
     priorityRows,
     packageCards,
     journalDocs,
+    signatures,
     topRisks,
     recommendedActions,
     riskOverview,
@@ -871,7 +1052,7 @@ export default async function HusrapportPage({
         <a href="/">Omslag</a>
         <a className="active" href={reportHref}>Status Husrapport</a>
         <a href="/portal">Kundkonto</a>
-        <a href="/admin">SaaS-system</a>
+        <a href="/admin">RVM arbetsyta</a>
       </nav>
 
       <section className="statusTop">
@@ -979,6 +1160,11 @@ export default async function HusrapportPage({
             <p>{leadText}</p>
           </div>
           <div className="customerStats">
+            <article>
+              <span>Husstatus</span>
+              <strong>{healthScoreLabel}</strong>
+              <small>{healthStatusText}</small>
+            </article>
             {statusCards.slice(0, 4).map(([label, value, sub]) => (
               <article key={label}>
                 <span>{label}</span>
@@ -1035,12 +1221,31 @@ export default async function HusrapportPage({
 
       <section className="reportPage">
         <SectionHeader no="1" title="Sammanfattning" />
-        <p className="leadText">
-          {leadText}
-        </p>
-        <div className="statusMetricGrid">
+        <div className="summaryHero">
+          <article className="houseStatusPanel">
+            <span>Husstatus</span>
+            <strong>{healthScoreLabel}</strong>
+            <b>{healthStatusText}</b>
+            <small>Riskindex: {riskIndexLabel}</small>
+          </article>
+          <p className="leadText">{leadText}</p>
+        </div>
+        {systemStatuses.length > 0 ? (
+          <div className="systemStatusGrid">
+            {systemStatuses.map((system) => (
+              <article key={system.label}>
+                <span>{system.label}</span>
+                <strong>{system.score}/100</strong>
+                <small>{system.status}</small>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="emptyReportState">Delstatus visas när komponenter eller kontrollpunkter finns registrerade.</div>
+        )}
+        <div className="statusMetricGrid secondary">
           {statusCards.map(([label, value, sub, tone]) => (
-            <article className="statusMetric" key={label}>
+            <article className="statusMetric compact" key={label}>
               <div className={`thinRing ${tone}`} />
               <strong>{value}</strong>
               <span>{label}</span>
@@ -1124,7 +1329,7 @@ export default async function HusrapportPage({
           <div className="reportDuo">
             {energyTrend.length > 0 && (
               <article className="reportCard chartCard">
-                <h3>Energianvändning & potential</h3>
+                <h3>Energioptimeringspotential</h3>
                 <div className="liveBarChart">
                   {energyTrend.map((item) => (
                     <div key={item.label}>
@@ -1148,17 +1353,22 @@ export default async function HusrapportPage({
 
       <section className="reportPage">
         <SectionHeader no="6" title="Vattensäkerhet, kök & våtrum" />
-        {waterCards.length > 0 && (
-          <div className="waterCards">
-            {waterCards.map(([label, risk]) => <div key={label}><strong>{label}</strong><span>{risk}</span></div>)}
+        {waterItems.length > 0 && (
+          <div className="waterIssueGrid">
+            {waterItems.map(([label, observation, risk, recommendation, estimate]) => (
+              <article className={`waterIssue risk-${risk.toLowerCase()}`} key={`${label}-${observation}`}>
+                <header>
+                  <strong>{label}</strong>
+                  <span>Risk: {risk}</span>
+                </header>
+                <div><b>Observation</b><p>{observation || "Ingen anmärkning"}</p></div>
+                <div><b>Rekommendation</b><p>{recommendation || "Ingen åtgärd rekommenderad"}</p></div>
+                <div><b>Estimat</b><p>{estimate || "Pris ej fastställt"}</p></div>
+              </article>
+            ))}
           </div>
         )}
-        {waterItems.length > 0 && (
-          <table>
-            <thead><tr><th>Kontrollpunkt</th><th>Observation</th><th>Risk</th><th>Rekommendation</th><th>Estimat</th></tr></thead>
-            <tbody>{waterItems.map((row) => <tr key={row.join("-")}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>)}</tbody>
-          </table>
-        )}
+        {waterItems.length === 0 && <div className="emptyReportState">Vattensäkerhet är inte kontrollerad i valt underlag.</div>}
         {waterPackage && <div className="packageBanner"><strong>{waterPackage[0]}</strong><span>{waterPackage[1]}</span></div>}
       </section>
 
@@ -1167,7 +1377,14 @@ export default async function HusrapportPage({
         {plan.length > 0 && (
           <div className="planLayout">
             <article className="reportCard verticalPlan">
-              {plan.map(([year, action, prio, cost]) => <div key={action}><time>{year}</time><strong>{action}</strong><span>{prio}</span><b>{cost}</b></div>)}
+              {plan.map(([year, action, prio, cost]) => (
+                <div className={`priority-${prio.toLowerCase()}`} key={action}>
+                  <time>{year}</time>
+                  <strong>{action}</strong>
+                  <span>{prio} prioritet</span>
+                  <b>{cost || "Pris ej fastställt"}</b>
+                </div>
+              ))}
             </article>
             <div className="sideStack">
               {investmentTotal && <article className="reportCard investment"><h3>Sammanlagd planerad investering</h3><strong>{investmentTotal}</strong></article>}
@@ -1205,16 +1422,49 @@ export default async function HusrapportPage({
             {packageCards.map(([name, text, price]) => <article className="reportCard packageCard" key={name}><h3>{name}</h3><p>{text}</p><strong>{price}</strong></article>)}
           </div>
         )}
+        {priorityRows.length > 0 && (
+          <form className="quoteRequestBox noPrint">
+            <h3>Begär offert på valda åtgärder</h3>
+            {priorityRows.map(([, action, , time, cost]) => (
+              <label key={`${action}-${time}`}>
+                <input name="quoteActions" type="checkbox" value={action} />
+                <span>{action}</span>
+                <small>{time} · {cost || "Pris ej fastställt"}</small>
+              </label>
+            ))}
+            <button type="button">Begär offert på valda åtgärder</button>
+          </form>
+        )}
       </section>
 
       <section className="reportPage">
         <SectionHeader no="9" title="Utföranderapport, egenkontroll & husjournal" />
+        <div className="journalCadence">
+          <article><h3>Årligen</h3><ul><li>Kontrollera systemtryck</li><li>Okulär läckagekontroll</li><li>Motionera ventiler</li><li>Kontrollera golvbrunnar</li></ul></article>
+          <article><h3>Vartannat år</h3><ul><li>Service värmekälla</li><li>Kontroll av säkerhetsfunktioner</li></ul></article>
+          <article><h3>Vid behov</h3><ul><li>Filterservice</li><li>Spolning</li><li>Vattenprov</li></ul></article>
+        </div>
         {journalDocs.length > 0 && (
           <div className="reportDuo lightDocs">
             {journalDocs.map((doc) => (
               <article key={doc.title}>
                 <h3>{doc.title}</h3>
                 {doc.rows.map((row) => <p key={row}>{row}</p>)}
+              </article>
+            ))}
+          </div>
+        )}
+        {signatures.length > 0 && (
+          <div className="reportSignatures">
+            {signatures.map((signature) => (
+              <article className={signature.valid ? "valid" : "invalid"} key={signature.id}>
+                <div>
+                  <span>{signature.valid ? "Signerad" : "Kräver ny signering"}</span>
+                  <strong>Signerad av: {signature.signedBy}</strong>
+                  <p>Roll: {signature.role}</p>
+                  <p>Datum: {new Date(signature.signedAt).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}</p>
+                </div>
+                <img alt={`Signatur ${signature.signedBy}`} src={signature.imageDataUrl} />
               </article>
             ))}
           </div>
@@ -1228,6 +1478,7 @@ export default async function HusrapportPage({
     </main>
   );
 }
+
 
 
 

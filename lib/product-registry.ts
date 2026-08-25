@@ -1,0 +1,372 @@
+import type { ProductDataQuality } from "@prisma/client";
+
+export const productCategories = [
+  "Värmepump",
+  "Varmvattenberedare",
+  "Cirkulationspump",
+  "Köldbärarpump",
+  "Expansionskärl",
+  "Blandningsventil",
+  "Smutsfilter",
+  "Vattenmätare",
+  "WC-stol",
+  "Blandare",
+  "Golvbrunn",
+] as const;
+
+export const productQualityLabels: Record<ProductDataQuality, string> = {
+  verified_manual: "Verifierad mot manual",
+  manufacturer_source: "Tillverkarkälla",
+  supplier_source: "Leverantörskälla",
+  estimated: "Uppskattad",
+  unverified: "Overifierad",
+};
+
+export type StarterProduct = {
+  manufacturer: string;
+  website?: string;
+  category: string;
+  modelName: string;
+  systemType?: string;
+  productionStartYear?: number;
+  productionEndYear?: number;
+  outputMinKw?: number;
+  outputMaxKw?: number;
+  tankVolumeLitres?: number;
+  connectionSize?: string;
+  dimensions?: string;
+  controlSystem?: string;
+  expectedLifetimeMinYears?: number;
+  expectedLifetimeMaxYears?: number;
+  replacementPriceMinSek?: number;
+  replacementPriceMaxSek?: number;
+  sourceUrl?: string;
+  manualUrl?: string;
+  wiringDiagramUrl?: string;
+  dataQuality: ProductDataQuality;
+};
+
+export const starterProducts: StarterProduct[] = [
+  {
+    manufacturer: "IVT",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "PremiumLine X15",
+    systemType: "Berg-/jord-/sjövärmepump",
+    productionStartYear: 2006,
+    outputMinKw: 4.5,
+    outputMaxKw: 17,
+    controlSystem: "Varvtalsstyrd",
+    expectedLifetimeMinYears: 18,
+    expectedLifetimeMaxYears: 25,
+    replacementPriceMinSek: 190000,
+    replacementPriceMaxSek: 230000,
+    sourceUrl: "https://jseducation.se/product/ivt-premiumline-x15",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "IVT",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "Optima",
+    systemType: "Luft/vattenvärmepump",
+    productionStartYear: 2004,
+    outputMinKw: 5,
+    outputMaxKw: 17,
+    expectedLifetimeMinYears: 15,
+    expectedLifetimeMaxYears: 22,
+    replacementPriceMinSek: 155000,
+    replacementPriceMaxSek: 220000,
+    sourceUrl: "https://jseducation.se/product/ivt-optima",
+    dataQuality: "supplier_source",
+  },
+  {
+    manufacturer: "IVT",
+    website: "https://jseducation.se/",
+    category: "Varmvattenberedare",
+    modelName: "290 A/W",
+    systemType: "Innedel luft/vatten",
+    tankVolumeLitres: 290,
+    expectedLifetimeMinYears: 18,
+    expectedLifetimeMaxYears: 25,
+    replacementPriceMinSek: 65000,
+    replacementPriceMaxSek: 95000,
+    sourceUrl: "https://jseducation.se/product/ivt-290",
+    dataQuality: "supplier_source",
+  },
+  {
+    manufacturer: "NIBE",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "F1245",
+    systemType: "Bergvärmepump med integrerad VVB",
+    outputMinKw: 5,
+    outputMaxKw: 12,
+    tankVolumeLitres: 180,
+    controlSystem: "Fast kompressor",
+    expectedLifetimeMinYears: 18,
+    expectedLifetimeMaxYears: 25,
+    replacementPriceMinSek: 170000,
+    replacementPriceMaxSek: 230000,
+    sourceUrl: "https://jseducation.se/product/nibe-f1245",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "NIBE",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "F1255",
+    systemType: "Varvtalsstyrd bergvärmepump med integrerad VVB",
+    outputMinKw: 1.5,
+    outputMaxKw: 16,
+    tankVolumeLitres: 180,
+    controlSystem: "Varvtalsstyrd",
+    expectedLifetimeMinYears: 18,
+    expectedLifetimeMaxYears: 25,
+    replacementPriceMinSek: 185000,
+    replacementPriceMaxSek: 245000,
+    sourceUrl: "https://jseducation.se/product/nibe-f1255",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "NIBE",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "F370",
+    systemType: "Frånluftsvärmepump",
+    tankVolumeLitres: 170,
+    expectedLifetimeMinYears: 15,
+    expectedLifetimeMaxYears: 22,
+    replacementPriceMinSek: 105000,
+    replacementPriceMaxSek: 155000,
+    sourceUrl: "https://jseducation.se/product/nibe-f370",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "NIBE",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "F750",
+    systemType: "Frånluftsvärmepump",
+    tankVolumeLitres: 180,
+    controlSystem: "Varvtalsstyrd",
+    expectedLifetimeMinYears: 15,
+    expectedLifetimeMaxYears: 22,
+    replacementPriceMinSek: 125000,
+    replacementPriceMaxSek: 175000,
+    sourceUrl: "https://jseducation.se/product/nibe-f750",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "CTC",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "GSi 616",
+    systemType: "Varvtalsstyrd bergvärmepump med integrerad VVB",
+    outputMinKw: 2.5,
+    outputMaxKw: 16,
+    tankVolumeLitres: 180,
+    controlSystem: "Varvtalsstyrd",
+    expectedLifetimeMinYears: 18,
+    expectedLifetimeMaxYears: 25,
+    replacementPriceMinSek: 185000,
+    replacementPriceMaxSek: 245000,
+    sourceUrl: "https://jseducation.se/product/ctc-gsi-616",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "CTC",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "EcoAir",
+    systemType: "Luft/vattenvärmepump",
+    expectedLifetimeMinYears: 15,
+    expectedLifetimeMaxYears: 22,
+    replacementPriceMinSek: 135000,
+    replacementPriceMaxSek: 205000,
+    sourceUrl: "https://jseducation.se/product/ctc-ecoair",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Thermia",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "Diplomat",
+    systemType: "Bergvärmepump",
+    expectedLifetimeMinYears: 18,
+    expectedLifetimeMaxYears: 25,
+    replacementPriceMinSek: 170000,
+    replacementPriceMaxSek: 230000,
+    sourceUrl: "https://jseducation.se/product/thermia-diplomat",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Bosch",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "Compress 7000i LW",
+    systemType: "Bergvärmepump",
+    controlSystem: "Varvtalsstyrd",
+    expectedLifetimeMinYears: 18,
+    expectedLifetimeMaxYears: 25,
+    replacementPriceMinSek: 185000,
+    replacementPriceMaxSek: 245000,
+    sourceUrl: "https://jseducation.se/product/bosch-compress-7000i-lw",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Daikin",
+    website: "https://jseducation.se/",
+    category: "Värmepump",
+    modelName: "Altherma",
+    systemType: "Luft/vattenvärmepump",
+    controlSystem: "Varvtalsstyrd",
+    expectedLifetimeMinYears: 15,
+    expectedLifetimeMaxYears: 22,
+    replacementPriceMinSek: 145000,
+    replacementPriceMaxSek: 220000,
+    sourceUrl: "https://jseducation.se/product/daikin-altherma",
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Grundfos",
+    category: "Cirkulationspump",
+    modelName: "Alpha2 25-60",
+    systemType: "Cirkulationspump värme",
+    connectionSize: "DN25 / 180 mm",
+    controlSystem: "Varvtalsstyrd",
+    expectedLifetimeMinYears: 12,
+    expectedLifetimeMaxYears: 18,
+    replacementPriceMinSek: 6500,
+    replacementPriceMaxSek: 12000,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Grundfos",
+    category: "Köldbärarpump",
+    modelName: "UPM3 25-75",
+    systemType: "Köldbärarpump",
+    connectionSize: "DN25 / 180 mm",
+    expectedLifetimeMinYears: 12,
+    expectedLifetimeMaxYears: 18,
+    replacementPriceMinSek: 7500,
+    replacementPriceMaxSek: 14000,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Wilo",
+    category: "Cirkulationspump",
+    modelName: "Yonos Para 25/6",
+    systemType: "Cirkulationspump värme",
+    connectionSize: "DN25",
+    expectedLifetimeMinYears: 12,
+    expectedLifetimeMaxYears: 18,
+    replacementPriceMinSek: 6500,
+    replacementPriceMaxSek: 12000,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Reflex",
+    category: "Expansionskärl",
+    modelName: "N 18",
+    systemType: "Slutet expansionskärl",
+    tankVolumeLitres: 18,
+    connectionSize: "DN20",
+    expectedLifetimeMinYears: 10,
+    expectedLifetimeMaxYears: 15,
+    replacementPriceMinSek: 4500,
+    replacementPriceMaxSek: 8500,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Flamco",
+    category: "Säkerhetsventil",
+    modelName: "Prescor B",
+    systemType: "Säkerhetsventil värme",
+    connectionSize: "DN15",
+    expectedLifetimeMinYears: 10,
+    expectedLifetimeMaxYears: 15,
+    replacementPriceMinSek: 1500,
+    replacementPriceMaxSek: 3500,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "ESBE",
+    category: "Blandningsventil",
+    modelName: "VTA322",
+    systemType: "Termostatisk blandningsventil",
+    connectionSize: "DN20",
+    expectedLifetimeMinYears: 12,
+    expectedLifetimeMaxYears: 18,
+    replacementPriceMinSek: 2500,
+    replacementPriceMaxSek: 6500,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "IMI",
+    category: "Smutsfilter",
+    modelName: "Zeparo Cyclone",
+    systemType: "Magnetit-/smutsavskiljare",
+    connectionSize: "DN25",
+    expectedLifetimeMinYears: 15,
+    expectedLifetimeMaxYears: 25,
+    replacementPriceMinSek: 4500,
+    replacementPriceMaxSek: 9500,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Mora",
+    category: "Blandare",
+    modelName: "Cera K5",
+    systemType: "Köksblandare",
+    expectedLifetimeMinYears: 12,
+    expectedLifetimeMaxYears: 20,
+    replacementPriceMinSek: 3500,
+    replacementPriceMaxSek: 7500,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "IFÖ",
+    category: "WC-stol",
+    modelName: "Sign 6860",
+    systemType: "WC-stol",
+    expectedLifetimeMinYears: 20,
+    expectedLifetimeMaxYears: 30,
+    replacementPriceMinSek: 6500,
+    replacementPriceMaxSek: 12000,
+    dataQuality: "estimated",
+  },
+  {
+    manufacturer: "Purus",
+    category: "Golvbrunn",
+    modelName: "Oden 75",
+    systemType: "Golvbrunn",
+    connectionSize: "75 mm",
+    expectedLifetimeMinYears: 25,
+    expectedLifetimeMaxYears: 40,
+    replacementPriceMinSek: 8000,
+    replacementPriceMaxSek: 18000,
+    dataQuality: "estimated",
+  },
+];
+
+export function technicalSummary(product: {
+  outputMinKw: number | null;
+  outputMaxKw: number | null;
+  tankVolumeLitres: number | null;
+  connectionSize: string | null;
+  systemType: string | null;
+}) {
+  const parts = [
+    product.outputMinKw !== null && product.outputMaxKw !== null
+      ? `${String(product.outputMinKw).replace(".", ",")}-${String(product.outputMaxKw).replace(".", ",")} kW`
+      : product.outputMaxKw !== null
+        ? `${String(product.outputMaxKw).replace(".", ",")} kW`
+        : "",
+    product.tankVolumeLitres ? `${product.tankVolumeLitres} l` : "",
+    product.connectionSize ?? "",
+    product.systemType ?? "",
+  ].filter(Boolean);
+
+  return parts.join(" / ");
+}

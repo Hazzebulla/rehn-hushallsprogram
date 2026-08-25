@@ -1,4 +1,5 @@
 import { prisma } from "../../../lib/prisma";
+import { technicalSummary } from "../../../lib/product-registry";
 import AdminSidebar from "../admin-sidebar";
 import HusstatusFormView from "./view";
 import { rvmFieldCount, rvmSections } from "./spec";
@@ -26,11 +27,19 @@ function lightenStoredPhotos(value: unknown): unknown {
 
 async function getFormData(selectedPropertyId?: string) {
   try {
-    const properties = await prisma.property.findMany({
-      where: { companyId: "org_rehn_vvs" },
-      include: { customer: true },
-      orderBy: { updatedAt: "desc" },
-    });
+    const [properties, products] = await Promise.all([
+      prisma.property.findMany({
+        where: { companyId: "org_rehn_vvs" },
+        include: { customer: true },
+        orderBy: { updatedAt: "desc" },
+      }),
+      prisma.productModel.findMany({
+        where: { active: true },
+        include: { manufacturer: true },
+        orderBy: [{ category: "asc" }, { modelName: "asc" }],
+        take: 2500,
+      }),
+    ]);
     const propertyId = selectedPropertyId || properties[0]?.id;
     const draftSubmission = propertyId
       ? await prisma.formSubmission.findFirst({
@@ -66,6 +75,30 @@ async function getFormData(selectedPropertyId?: string) {
       properties: properties.map((property) => ({
         id: property.id,
         label: `${property.customer.name} - ${property.propertyNo ?? property.address}`,
+        customerName: property.customer.name,
+        customerPhone: property.customer.phone ?? "",
+        customerEmail: property.customer.invoiceEmail ?? "",
+        customerIdentifier: property.customer.orgOrPersonNo ?? "",
+        propertyNo: property.propertyNo ?? "",
+        address: property.address,
+        propertyType: property.type,
+        buildYear: property.buildYear,
+      })),
+      products: products.map((product) => ({
+        id: product.id,
+        category: product.category,
+        manufacturer: product.manufacturer.name,
+        modelName: product.modelName,
+        systemType: product.systemType ?? "",
+        technicalData: technicalSummary(product),
+        expectedLifetimeMinYears: product.expectedLifetimeMinYears,
+        expectedLifetimeMaxYears: product.expectedLifetimeMaxYears,
+        replacementPriceMinSek: product.replacementPriceMinSek,
+        replacementPriceMaxSek: product.replacementPriceMaxSek,
+        sourceUrl: product.sourceUrl ?? "",
+        manualUrl: product.manualUrl ?? "",
+        wiringDiagramUrl: product.wiringDiagramUrl ?? "",
+        dataQuality: product.dataQuality,
       })),
     };
   } catch {
@@ -74,7 +107,19 @@ async function getFormData(selectedPropertyId?: string) {
       initialPropertyId: selectedPropertyId,
       initialStatus: "NOT_STARTED",
       initialAnswers: {},
-      properties: [{ id: "LOCAL-property", label: "Anna & Erik Svensson - Villa Ängby" }],
+      properties: [{
+        id: "LOCAL-property",
+        label: "Anna & Erik Svensson - Villa Ängby",
+        customerName: "Anna & Erik Svensson",
+        customerPhone: "",
+        customerEmail: "",
+        customerIdentifier: "",
+        propertyNo: "",
+        address: "Villa Ängby",
+        propertyType: "Villa",
+        buildYear: null,
+      }],
+      products: [],
     };
   }
 }

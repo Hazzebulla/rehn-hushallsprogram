@@ -3,23 +3,23 @@ const riskBars = [
   { label: "Tappvatten", value: 68 },
   { label: "Avlopp", value: 58 },
   { label: "Ventiler", value: 74 },
-  { label: "El & styr", value: 43 },
-  { label: "Sanitet", value: 39 },
+  { label: "Bilder", value: 52 },
+  { label: "Journal", value: 39 },
 ];
 
 const metrics = [
-  { label: "Totalt riskindex", value: "28", status: "Låg" },
-  { label: "Energipotential", value: "18%", status: "Besparing" },
-  { label: "Teknisk status", value: "78%", status: "God" },
-  { label: "Aktuella åtgärder", value: "5", status: "Prioriterade" },
+  { label: "Husstatus", value: "78", status: "av 100" },
+  { label: "Riskindex", value: "28", status: "Låg" },
+  { label: "Bilder", value: "24", status: "Dokumenterade" },
+  { label: "Åtgärder", value: "5", status: "Prioriterade" },
 ];
 
 const recommendations = [
   "Byt expansionskärl inom 1 år",
-  "Uppgradera radiatorventiler plan 1",
-  "Genomför tryckprovning i värmesystemet",
-  "Planera byte av blandningsventil",
-  "Samla servicetillfällen per område",
+  "Dokumentera värmepumpens typskylt",
+  "Kontrollera radiatorventiler plan 1",
+  "Verifiera kundens Huscheck på plats",
+  "Uppdatera husjournal efter genomgång",
 ];
 
 const maintenance = [
@@ -42,22 +42,23 @@ const components = [
 ];
 
 const workflow = [
-  "Kundförfrågan",
-  "Offert",
-  "Projekt",
-  "Arbetsorder",
-  "Tid & material",
-  "Fakturaunderlag",
+  "Kunduppgift",
+  "Fastighet",
+  "Huscheck",
+  "Platsbesök",
+  "Husrapport",
+  "Husjournal",
 ];
 
 export default function Page() {
   return (
     <main className="reportShell">
-      <nav className="modeNav" aria-label="Demo navigation">
-        <a className="active" href="/">Omslag</a>
-        <a href="/husrapport">Status Husrapport</a>
-        <a href="/portal">Kundkonto</a>
-        <a href="/admin">SaaS-system</a>
+      <nav className="modeNav" aria-label="Navigation">
+        <a className="active" href="/">Översikt</a>
+        <a href="/huscheck">Huscheck</a>
+        <a href="/husrapport">Husrapport</a>
+        <a href="/portal">Kundvy</a>
+        <a href="/admin">Admin</a>
       </nav>
       <section className="cover">
         <div className="coverTop">
@@ -68,9 +69,9 @@ export default function Page() {
         </div>
 
         <div className="coverTitle">
-          <p>Premium SaaS för hantverk</p>
-          <h1>RVM Husstatus</h1>
-          <span>Koll på projekt, ekonomi och fastighetens framtid.</span>
+          <p>Husrapport, kunduppgifter och VVS-dokumentation</p>
+          <h1>RVM Husrapport</h1>
+          <span>Ett fokuserat system för fastighetsdata, bilder, komponenter och kundens husjournal.</span>
         </div>
 
         <div className="houseFrame">
@@ -87,8 +88,8 @@ export default function Page() {
         <dl className="coverFacts">
           <div><dt>Kund</dt><dd>Anna & Erik Svensson</dd></div>
           <div><dt>Fastighet</dt><dd>Villa Ängby, Bromma</dd></div>
-          <div><dt>Projekt</dt><dd>Första VVS-genomgång</dd></div>
-          <div><dt>Rapport</dt><dd>HNV-2026-081</dd></div>
+          <div><dt>Underlag</dt><dd>Kunduppgift + platsbesök</dd></div>
+          <div><dt>Rapport</dt><dd>RVM-HS-2026-0001</dd></div>
         </dl>
       </section>
 
@@ -97,23 +98,24 @@ export default function Page() {
           <div className="brandLine">
             <div className="miniMark" />
             <div>
-              <strong>Hantverksnav</strong>
-              <span>Husjournal · VVS Demo AB</span>
+              <strong>RVM Husrapport</strong>
+              <span>Husjournal · Rehn VVS</span>
             </div>
           </div>
           <div className="reportMeta">
-            <span>Rapportnummer</span>
-            <strong>HNV-2026-081-0001</strong>
+            <span>Systemläge</span>
+            <strong>Husrapport</strong>
           </div>
         </header>
 
         <section className="summary">
           <div>
-            <p className="sectionKicker">Sammanfattning</p>
-            <h2>En operativ SaaS-yta med premiumrapport som produktkänsla.</h2>
+            <p className="sectionKicker">Fokuserat system</p>
+            <h2>Kunduppgifter in, platskontroll på plats, tydlig Husrapport ut.</h2>
             <p>
-              Vyn samlar projektflöde, arbetsorder, fakturaunderlag, komponentregister,
-              riskbedömning och en 20-årig underhållsplan i ett mörkt, tekniskt gränssnitt.
+              Systemet samlar kundregister, fastigheter, Huscheck, montörsformulär, bilddokumentation,
+              komponentregister, husrapport och 20-årig husjournal. Huvudflödet är begränsat till kunddata,
+              tekniskt underlag och rapport.
             </p>
           </div>
           <div className="flow">
@@ -135,7 +137,7 @@ export default function Page() {
           <article className="panel riskPanel">
             <div className="panelTitle">
               <h3>Risköversikt</h3>
-              <span>Komponentrisk per tekniskt område</span>
+              <span>Tekniskt område i Husrapport</span>
             </div>
             <div className="bars">
               {riskBars.map((bar) => (
@@ -149,8 +151,8 @@ export default function Page() {
 
           <article className="panel">
             <div className="panelTitle">
-              <h3>Rekommendationer</h3>
-              <span>Prioriterade åtgärder</span>
+              <h3>Nästa åtgärder</h3>
+              <span>Från rapport och kundunderlag</span>
             </div>
             <ol className="recommendations">
               {recommendations.map((item) => <li key={item}>{item}</li>)}
@@ -161,7 +163,7 @@ export default function Page() {
         <section className="panel planPanel">
           <div className="panelTitle">
             <h3>20-årig åtgärds- och investeringsplan</h3>
-            <span>Preliminär plan, inte bindande offert eller garanti</span>
+            <span>Planeringsunderlag, inte bindande offert eller garanti</span>
           </div>
           <div className="planGrid">
             <div className="planHead">Komponent</div>
@@ -185,7 +187,7 @@ export default function Page() {
           <article className="panel">
             <div className="panelTitle">
               <h3>Komponentregister</h3>
-              <span>Alla rader är tenant-kopplade och versionsloggade</span>
+              <span>Kopplat till fastighet och Husrapport</span>
             </div>
             <table>
               <thead>
@@ -212,23 +214,23 @@ export default function Page() {
 
           <article className="panel mobileJournal">
             <div className="panelTitle">
-              <h3>Mobil fältvy</h3>
-              <span>För montör på plats</span>
+              <h3>Mobil platskontroll</h3>
+              <span>För montör och bilddokumentation</span>
             </div>
             <div className="device">
-              <div className="deviceHeader">Dagens order</div>
-              <button>Starta arbetstid</button>
-              <button>Registrera komponent</button>
-              <button>Ta foto</button>
-              <button>Skapa ÄTA</button>
-              <button>Avsluta arbetsorder</button>
+              <div className="deviceHeader">Husrapport</div>
+              <button>Öppna kundunderlag</button>
+              <button>Verifiera komponent</button>
+              <button>Ta bild</button>
+              <button>Uppdatera åtgärdsplan</button>
+              <button>Skapa rapportutkast</button>
             </div>
           </article>
         </section>
 
         <footer className="reportFooter">
-          <span>GDPR · Audit log · Rollbaserad åtkomst · Offertversioner låses vid accept</span>
-          <strong>VVS Demo AB</strong>
+          <span>GDPR · Audit log · Rollbaserad åtkomst · Kunduppgift eller verifierad uppgift</span>
+          <strong>Rehn VVS</strong>
         </footer>
       </section>
     </main>

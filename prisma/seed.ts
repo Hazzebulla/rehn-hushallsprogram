@@ -1,8 +1,9 @@
 ﻿import { PrismaClient, Role, AuthProvider, DocumentVisibility, BackupStatus } from "@prisma/client";
 import { hashPassword } from "../lib/password";
+import { starterProducts } from "../lib/product-registry";
 
 const prisma = new PrismaClient();
-const demoPassword = process.env.SEED_USER_PASSWORD ?? "demo-password";
+const seedPassword = process.env.SEED_USER_PASSWORD;
 
 async function main() {
   const company = await prisma.company.upsert({
@@ -35,13 +36,17 @@ async function main() {
 
     await prisma.authAccount.upsert({
       where: { provider_providerAccountId: { provider: AuthProvider.EMAIL, providerAccountId: email } },
-      update: { userId: user.id, companyId: company.id, passwordHash: hashPassword(demoPassword) },
+      update: {
+        userId: user.id,
+        companyId: company.id,
+        ...(seedPassword ? { passwordHash: hashPassword(seedPassword) } : {}),
+      },
       create: {
         companyId: company.id,
         userId: user.id,
         provider: AuthProvider.EMAIL,
         providerAccountId: email,
-        passwordHash: hashPassword(demoPassword),
+        passwordHash: hashPassword(seedPassword ?? "demo-password"),
         mfaEnabled: role === Role.ADMIN,
       },
     });
@@ -133,6 +138,69 @@ async function main() {
       after: { phase: "foundation", customerId: customer.id, propertyId: property.id },
     },
   });
+
+  for (const product of starterProducts) {
+    const manufacturer = await prisma.manufacturer.upsert({
+      where: { name: product.manufacturer },
+      update: { website: product.website ?? null },
+      create: { name: product.manufacturer, website: product.website ?? null },
+    });
+
+    await prisma.productModel.upsert({
+      where: {
+        manufacturerId_category_modelName: {
+          manufacturerId: manufacturer.id,
+          category: product.category,
+          modelName: product.modelName,
+        },
+      },
+      update: {
+        systemType: product.systemType ?? null,
+        productionStartYear: product.productionStartYear ?? null,
+        productionEndYear: product.productionEndYear ?? null,
+        outputMinKw: product.outputMinKw ?? null,
+        outputMaxKw: product.outputMaxKw ?? null,
+        tankVolumeLitres: product.tankVolumeLitres ?? null,
+        connectionSize: product.connectionSize ?? null,
+        dimensions: product.dimensions ?? null,
+        controlSystem: product.controlSystem ?? null,
+        expectedLifetimeMinYears: product.expectedLifetimeMinYears ?? null,
+        expectedLifetimeMaxYears: product.expectedLifetimeMaxYears ?? null,
+        replacementPriceMinSek: product.replacementPriceMinSek ?? null,
+        replacementPriceMaxSek: product.replacementPriceMaxSek ?? null,
+        sourceUrl: product.sourceUrl ?? null,
+        manualUrl: product.manualUrl ?? null,
+        wiringDiagramUrl: product.wiringDiagramUrl ?? null,
+        dataQuality: product.dataQuality,
+        lastVerifiedAt: new Date(),
+        active: true,
+      },
+      create: {
+        manufacturerId: manufacturer.id,
+        category: product.category,
+        modelName: product.modelName,
+        systemType: product.systemType ?? null,
+        productionStartYear: product.productionStartYear ?? null,
+        productionEndYear: product.productionEndYear ?? null,
+        outputMinKw: product.outputMinKw ?? null,
+        outputMaxKw: product.outputMaxKw ?? null,
+        tankVolumeLitres: product.tankVolumeLitres ?? null,
+        connectionSize: product.connectionSize ?? null,
+        dimensions: product.dimensions ?? null,
+        controlSystem: product.controlSystem ?? null,
+        expectedLifetimeMinYears: product.expectedLifetimeMinYears ?? null,
+        expectedLifetimeMaxYears: product.expectedLifetimeMaxYears ?? null,
+        replacementPriceMinSek: product.replacementPriceMinSek ?? null,
+        replacementPriceMaxSek: product.replacementPriceMaxSek ?? null,
+        sourceUrl: product.sourceUrl ?? null,
+        manualUrl: product.manualUrl ?? null,
+        wiringDiagramUrl: product.wiringDiagramUrl ?? null,
+        dataQuality: product.dataQuality,
+        lastVerifiedAt: new Date(),
+        active: true,
+      },
+    });
+  }
 }
 
 main()

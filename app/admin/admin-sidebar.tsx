@@ -9,8 +9,13 @@ type AdminSidebarProps = {
     | "foundation"
     | "customers"
     | "properties"
+    | "newReport"
+    | "reports"
+    | "pricing"
+    | "products"
     | "installations"
     | "energyAnalysis"
+    | "huschecks"
     | "husstatusForm"
     | "husstatusSubmissions"
     | "reportImport"
@@ -22,44 +27,29 @@ type AdminSidebarProps = {
     | "history"
     | "backup"
     | "gdpr"
-    | "legal";
+    | "legal"
+    | "settings";
   label?: string;
 };
 
 const mainLinks = [
   ["admin", "/admin", "Översikt"],
-  ["customers", "/admin/customers", "Kunder"],
-  ["properties", "/admin/properties", "Fastigheter"],
-  ["installations", "/admin/installations", "Installationer"],
-  ["energyAnalysis", "/admin/energy-analysis", "Energianalys värme"],
-  ["husstatusForm", "/admin/husstatus-form", "Fyll i formulär"],
-  ["husstatusSubmissions", "/admin/husstatus-submissions", "Formulärsvar"],
-  ["reportImport", "/admin/report-import", "Rapportimport"],
-  ["requests", "/admin/requests", "Ärenden"],
-  ["workorders", "/admin/workorders", "Arbetsorder"],
-  ["invoicing", "/admin/invoicing", "Fakturaunderlag"],
-  ["documents", "/admin/documents", "Dokument"],
-  ["images", "/admin/images", "Bilder"],
-] as const;
-
-const systemLinks = [
-  ["access", "/admin/access", "Åtkomst"],
-  ["foundation", "/admin/foundation", "Fundament"],
-  ["history", "/admin/history", "Historik"],
-  ["backup", "/admin/backup", "Backup"],
-  ["gdpr", "/admin/gdpr", "GDPR"],
-  ["legal", "/admin/legal", "Lagligt"],
+  ["customers", "/admin/customers", "Kunder & Fastigheter"],
+  ["newReport", "/admin/new-report", "Ny Husrapport"],
+  ["reports", "/admin/reports", "Husrapporter"],
+  ["pricing", "/admin/pricing", "Prisdatabas"],
+  ["settings", "/admin/settings", "Inställningar"],
 ] as const;
 
 const publicLinks = [
   ["/", "Omslag"],
   ["/husrapport", "Status Husrapport"],
+  ["/huscheck", "Huscheck"],
   ["/portal", "Kundkonto"],
   ["/login", "Inloggning"],
 ] as const;
 
 export default function AdminSidebar({ active, label = "Rehn VVS" }: AdminSidebarProps) {
-  const systemOpen = systemLinks.some(([key]) => key === active);
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -80,14 +70,14 @@ export default function AdminSidebar({ active, label = "Rehn VVS" }: AdminSideba
         <div className="brandLine">
           <div className="miniMark" />
           <div>
-            <strong>RVM SaaS</strong>
+            <strong>RVM Husrapport</strong>
             <span>{label}</span>
           </div>
         </div>
 
         <nav aria-label="Admin navigation">
           <div className="adminSideGroup">
-            <span>Arbete</span>
+            <span>Husrapport</span>
             {mainLinks.map(([key, href, title]) => (
               <a className={active === key ? "active" : ""} href={href} key={key} onClick={() => setMenuOpen(false)}>
                 {title}
@@ -95,17 +85,8 @@ export default function AdminSidebar({ active, label = "Rehn VVS" }: AdminSideba
             ))}
           </div>
 
-          <details className="adminSideGroup system" open={systemOpen}>
-            <summary>System</summary>
-            {systemLinks.map(([key, href, title]) => (
-              <a className={active === key ? "active" : ""} href={href} key={key} onClick={() => setMenuOpen(false)}>
-                {title}
-              </a>
-            ))}
-          </details>
-
           <div className="adminSideGroup public">
-            <span>Demo</span>
+            <span>Kundvy</span>
             {publicLinks.map(([href, title]) => (
               <a href={href} key={href} onClick={() => setMenuOpen(false)}>
                 {title}

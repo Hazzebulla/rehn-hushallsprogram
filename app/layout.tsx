@@ -1,10 +1,10 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Hantverksnav | SaaS för VVS och hantverk",
+  title: "RVM Husrapport | Husrapport och VVS-data",
   description:
-    "Modern svensk SaaS-prototyp för hantverksföretag med projekt, arbetsorder, tid, fakturaunderlag och digital fastighetsjournal.",
+    "Svensk arbetsyta för RVM Husstatus med kunddata, fastigheter, VVS-register, bilder och digital husrapport.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -14,3 +14,5 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
+
+

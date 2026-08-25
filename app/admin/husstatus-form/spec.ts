@@ -15,7 +15,8 @@ export type RvmSection = {
 
 const yn = ["Ja", "Nej", "Ej kontrollerat"];
 const ok = ["OK", "Avvikelse", "Ej kontrollerat"];
-const source = ["Kunduppgift", "RVM mätt", "Verifierat", "Ej åtkomligt"];
+const present = ["Finns", "Saknas", "Rekommenderas", "Ej aktuellt", "Ej kontrollerat"];
+const checked = ["Kontrollerat", "Avvikelse", "Ej aktuellt", "Ej åtkomligt"];
 
 export const rvmSections: RvmSection[] = [
   {
@@ -30,6 +31,8 @@ export const rvmSections: RvmSection[] = [
       { key: "area_floors", label: "Boyta / biyta / antal plan", type: "text", source: true },
       { key: "foundation", label: "Grundläggning", type: "select", options: ["Platta", "Källare", "Krypgrund", "Annat"] },
       { key: "scope", label: "Kontrollens omfattning", type: "select", options: ["Full husstatus", "Del av hus", "Annat"] },
+      { key: "external_property_source", label: "Extern underlagslänk, t.ex. Ratsit/MrKoll", type: "text", source: true },
+      { key: "property_import_notes", label: "Importerad fastighetsinfo / anteckningar från underlag", type: "textarea", source: true },
       { key: "not_accessible", label: "Ej åtkomliga utrymmen eller produkter", type: "textarea" },
     ],
   },
@@ -48,15 +51,14 @@ export const rvmSections: RvmSection[] = [
   },
   {
     id: 3,
-    title: "Fotodokumentation - obligatorisk grundlista",
-    description: "Bildnummer och dokument som behövs för rapport och framtida service.",
+    title: "Snabbstart för platsbesök",
+    description: "Starta genomgången med status, ansvarig och vilka underlag som finns. Bilder samlas i avsnitt 25.",
     fields: [
-      { key: "photo_technical_room", label: "Översikt teknikrum / pannrum", type: "text" },
-      { key: "photo_heat_source", label: "Värmekälla - helhet, display och typskylt", type: "text" },
-      { key: "photo_expansion", label: "Expansionskärl, säkerhetsventiler, manometrar", type: "text" },
-      { key: "photo_water_meter", label: "Vattenmätare, huvudavstängning och servis", type: "text" },
-      { key: "photo_kitchen_bath", label: "Kök, badrum, WC och tvättstuga", type: "text" },
-      { key: "photo_notes", label: "Övriga bilder / dokument", type: "textarea" },
+      { key: "inspection_status", label: "Genomgångens status", type: "select", options: ["Påbörjad", "Pågår", "Klar för granskning", "Komplettering krävs"] },
+      { key: "inspection_owner", label: "Ansvarig montör / arbetsledare", type: "text" },
+      { key: "customer_present", label: "Kund med på plats", type: "select", options: yn },
+      { key: "documents_available", label: "Underlag finns", type: "checklist", options: ["Tidigare serviceprotokoll", "Manualer", "Energiförbrukning", "Ritning", "Produktbilder", "Kundens självdeklaration"] },
+      { key: "quick_scope_notes", label: "Snabbanteckning inför kontroll", type: "textarea", source: true },
     ],
   },
   {
@@ -91,7 +93,7 @@ export const rvmSections: RvmSection[] = [
     title: "Tappvarmvatten, varmvattenberedare och VVC",
     description: "Produktregister, legionellarisk och temperaturer.",
     fields: [
-      { key: "hot_water_type", label: "Typ: VVB / värmepump / panna / växlare", type: "text" },
+      { key: "hot_water_type", label: "Typ: VVB / värmepump / panna / växlare", type: "select", options: ["Värmepump med integrerad VVB", "Extern varmvattenberedare", "Panna", "Värmeväxlare", "Elberedare", "Okänt"] },
       { key: "hot_water_product", label: "Serienummer, år, volym och effekt", type: "text" },
       { key: "mixing_valve", label: "Blandningsventil fabrikat/modell", type: "text" },
       { key: "hot_water_out_c", label: "Varmvatten ut från produktion °C", type: "number", source: true },
@@ -105,7 +107,7 @@ export const rvmSections: RvmSection[] = [
     title: "Värmekälla och värmeproduktion",
     description: "Systemtyp, driftbild, larm och svårersatta komponenter.",
     fields: [
-      { key: "heat_source_type", label: "Systemtyp", type: "text" },
+      { key: "heat_source_type", label: "Systemtyp", type: "select", options: ["Bergvärme", "Jordvärme", "Luft/vatten", "Frånluftsvärmepump", "Fjärrvärme", "Elpanna", "Pelletspanna", "Vedpanna", "Okänt"] },
       { key: "heat_source_product", label: "Fabrikat, modell, serienummer, år", type: "text" },
       { key: "nominal_power", label: "Nominell effekt / tillsats", type: "text" },
       { key: "control_system", label: "Styrsystem / programversion", type: "text" },
@@ -118,7 +120,7 @@ export const rvmSections: RvmSection[] = [
     title: "Energibrunn / markslinga och köldbärarsystem",
     description: "Borrhål, kollektor och brinetemperaturer.",
     fields: [
-      { key: "energy_source_type", label: "Typ: energibrunn / jordvärme", type: "text" },
+      { key: "energy_source_type", label: "Typ: energibrunn / jordvärme", type: "select", options: ["Energibrunn", "Jordvärmeslinga", "Sjövärme", "Luft/vatten", "Ej aktuellt", "Okänt"] },
       { key: "drill_depth", label: "Totalt / aktivt borrdjup", type: "text" },
       { key: "collector_type", label: "Kollektortyp / dimension", type: "text" },
       { key: "brine_in_c", label: "Brine in °C", type: "number", source: true },
@@ -132,7 +134,7 @@ export const rvmSections: RvmSection[] = [
     title: "Värmedistribution, tryckhållning och säkerhetsutrustning",
     description: "Cirkulation, expansionskärl, ventiler och mätvärden.",
     fields: [
-      { key: "heat_pipe_material", label: "Huvudmaterial värmeledningar", type: "text" },
+      { key: "heat_pipe_material", label: "Huvudmaterial värmeledningar", type: "select", options: ["Stål", "Koppar", "PEX", "Alupex", "Blandat", "Okänt"] },
       { key: "circulation_pump", label: "Cirkulationspump fabrikat/modell", type: "text" },
       { key: "expansion_vessel", label: "Expansionskärl fabrikat/modell/volym", type: "text" },
       { key: "safety_valve", label: "Säkerhetsventil tryck/dimension", type: "text" },
@@ -172,7 +174,7 @@ export const rvmSections: RvmSection[] = [
     title: "Avlopp, spillvatten, golvbrunnar och rensmöjligheter",
     description: "Material, brunnar, stopp, filmning och enskilt avlopp.",
     fields: [
-      { key: "sewer_type", label: "Kommunalt / enskilt", type: "text" },
+      { key: "sewer_type", label: "Kommunalt / enskilt", type: "select", options: ["Kommunalt", "Enskilt avlopp", "Trekammarbrunn", "Minireningsverk", "Okänt"] },
       { key: "sewer_material", label: "Huvudmaterial / dimension", type: "text" },
       { key: "floor_drain", label: "Golvbrunnsfabrikat / typ / årgång", type: "text" },
       { key: "known_stops", label: "Kända stopp, bubbel eller luktproblem", type: "select", options: yn },
@@ -186,10 +188,10 @@ export const rvmSections: RvmSection[] = [
     description: "Diskbänksskåp, maskiner, larm och framtida köksplaner.",
     fields: [
       { key: "kitchen_sink_cabinet", label: "Diskbänksskåp och synliga kopplingar", type: "select", options: ok },
-      { key: "kitchen_waterproof_base", label: "Vattentätt underlag / läckageindikering", type: "select", options: ["Finns", "Saknas", "Ej bedömt"] },
+      { key: "kitchen_waterproof_base", label: "Vattentätt underlag / läckageindikering", type: "select", options: present },
       { key: "dishwasher", label: "Diskmaskinsanslutning och avstängning", type: "select", options: ok },
-      { key: "water_alarm", label: "Läckagelarm / vattenfelsbrytare", type: "select", options: ["Finns", "Rekommenderas", "Ej aktuellt"] },
-      { key: "kitchen_future", label: "Kundens framtida planer för köket", type: "select", options: ["Inga", "Renovering/förändring"] },
+      { key: "water_alarm", label: "Läckagelarm / vattenfelsbrytare", type: "select", options: present },
+      { key: "kitchen_future", label: "Kundens framtida planer för köket", type: "select", options: ["Inga kända", "Renovering planeras", "Byte av vitvaror", "Okänt"] },
       { key: "kitchen_notes", label: "Köksobservationer", type: "textarea" },
     ],
   },
@@ -214,7 +216,7 @@ export const rvmSections: RvmSection[] = [
       { key: "laundry_machines", label: "Tvättmaskin / torkutrustning och anslutningar", type: "select", options: ok },
       { key: "laundry_sink", label: "Tvättho / blandare / avstängningar", type: "select", options: ok },
       { key: "laundry_drain", label: "Golvbrunn - typ, årgång och skick", type: "text" },
-      { key: "laundry_alarm", label: "Vattenfelsbrytare / läckagelarm", type: "select", options: ["Finns", "Rekommenderas", "Ej aktuellt"] },
+      { key: "laundry_alarm", label: "Vattenfelsbrytare / läckagelarm", type: "select", options: present },
       { key: "laundry_notes", label: "Observationer och framtida planer", type: "textarea" },
     ],
   },
@@ -223,9 +225,9 @@ export const rvmSections: RvmSection[] = [
     title: "Övriga installationer och framtida planer",
     description: "Utekranar, garage, pool, gästhus och andra yrkesgrupper.",
     fields: [
-      { key: "outdoor_taps", label: "Utekranar / frostskydd / dimension", type: "select", options: ["Kontrollerat", "Ej aktuellt"] },
-      { key: "garage_guesthouse", label: "Garage / gästhus / separat system", type: "select", options: ["Kontrollerat", "Ej aktuellt"] },
-      { key: "pool_spa", label: "Pool / spa / utedusch", type: "select", options: ["Kontrollerat", "Ej aktuellt"] },
+      { key: "outdoor_taps", label: "Utekranar / frostskydd / dimension", type: "select", options: checked },
+      { key: "garage_guesthouse", label: "Garage / gästhus / separat system", type: "select", options: checked },
+      { key: "pool_spa", label: "Pool / spa / utedusch", type: "select", options: checked },
       { key: "planned_heat_source_change", label: "Planerat byte av värmekälla", type: "select", options: yn },
       { key: "other_trades", label: "Andra yrkesgrupper kan behövas", type: "checklist", options: ["El", "Vent", "Bygg", "Tak", "Fönster", "Isolering"] },
       { key: "future_notes", label: "Övriga framtidsplaner", type: "textarea" },
@@ -240,7 +242,7 @@ export const rvmSections: RvmSection[] = [
       { key: "heat_consumption", label: "Årsförbrukning värme / fjärrvärme", type: "text", source: true },
       { key: "water_m3", label: "Årsförbrukning vatten m³", type: "number", source: true },
       { key: "residents_temp", label: "Antal boende och normal inomhustemperatur", type: "text", source: true },
-      { key: "energy_declaration", label: "Energideklaration / tidigare energiberäkning", type: "select", options: ["Finns", "Saknas"] },
+      { key: "energy_declaration", label: "Energideklaration / tidigare energiberäkning", type: "select", options: present },
       { key: "energy_notes", label: "Energieffektiviseringsråd", type: "textarea" },
     ],
   },
@@ -252,6 +254,10 @@ export const rvmSections: RvmSection[] = [
       { key: "service_advice", label: "Relevanta skötselråd", type: "checklist", options: ["Spola tappställen", "Kontroll av systemtryck", "Luftning", "Okulär läckagekontroll", "Motionera ventiler", "Filterservice", "Läckagelarm", "Golvbrunnar", "Brunnsvattenprov", "Värmepumpsservice", "Legionellarisk"] },
       { key: "rvm_service_agreement", label: "Återkommande RVM Husstatus / serviceavtal", type: "select", options: ["Erbjuds", "Ej aktuellt"] },
       { key: "annual_control", label: "Årlig kontroll ska göras", type: "select", options: ["Ja", "Nej", "Ej bedömt"] },
+      { key: "quarterly_control", label: "Kvartalsvis kontrollöversyn till kund", type: "select", options: ["Ja", "Nej", "Erbjuds"] },
+      { key: "quarterly_delivery", label: "Leveranssätt kontrollöversyn", type: "select", options: ["E-post", "Post", "E-post och post"] },
+      { key: "next_control", label: "Nästa rekommenderade kontroll", type: "text" },
+      { key: "followup_owner", label: "Ansvarig för uppföljning", type: "text" },
       { key: "service_notes", label: "Servicekommentar", type: "textarea" },
     ],
   },
@@ -283,16 +289,13 @@ export const rvmSections: RvmSection[] = [
   },
   {
     id: 22,
-    title: "Serviceavtal och planerad uppföljning",
-    description: "Återkommande kontroll, tillval och nästa datum.",
+    title: "Kundkommunikation och leverans",
+    description: "Hur rapport, kontrollöversyn och fortsatt kontakt ska levereras till kunden.",
     fields: [
       { key: "digital_self_check", label: "Årlig digital egenkontroll från kund", type: "select", options: ["Erbjuds", "Ej aktuellt"] },
-      { key: "annual_visit", label: "Årligt RVM-besök", type: "select", options: ["Erbjuds", "Ej aktuellt"] },
-      { key: "quarterly_control", label: "Kvartalsvis kontrollöversyn till kund", type: "select", options: ["Ja", "Nej", "Erbjuds"] },
-      { key: "quarterly_delivery", label: "Leveranssätt kontrollöversyn", type: "select", options: ["E-post", "Post", "E-post och post"] },
-      { key: "service_includes", label: "Ingår / tillval", type: "checklist", options: ["Temperatur- och tryckkontroll", "Filter och ventiler", "Värmepumpsservice", "Vattenprov", "Uppdaterad husjournal"] },
-      { key: "next_control", label: "Nästa rekommenderade kontroll", type: "text" },
-      { key: "followup_owner", label: "Ansvarig för uppföljning", type: "text" },
+      { key: "customer_report_delivery", label: "Leverans av Husrapport", type: "select", options: ["Kundportal", "E-post", "Utskrift/post", "Kundportal och e-post"] },
+      { key: "customer_contact_preference", label: "Föredragen kontakt", type: "select", options: ["Telefon", "E-post", "SMS", "Kundportal"] },
+      { key: "customer_next_message", label: "Nästa meddelande till kund", type: "textarea" },
     ],
   },
   {

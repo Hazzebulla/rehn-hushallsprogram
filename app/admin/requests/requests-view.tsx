@@ -45,10 +45,10 @@ export default function RequestsView({
       <header className="adminTop">
         <div>
           <p className="sectionKicker">Kundärenden</p>
-          <h1>Från kundportal till arbetsorder.</h1>
+          <h1>Från kundportal till rapportunderlag.</h1>
           <p>
             Här hamnar offertförfrågningar, felanmälningar och bokningsförslag från kundportalen.
-            Admin kan skapa arbetsorder utan att skriva om kundens uppgifter.
+            Admin kan göra om kundens text till åtgärdsunderlag utan att skriva om uppgifterna.
           </p>
           <div className={`persistenceNote ${databaseOnline ? "online" : "offline"}`}>
             {isPending ? "Sparar..." : message}
@@ -77,7 +77,7 @@ export default function RequestsView({
               </div>
               <div className="requestActions">
                 <button disabled={isPending || !databaseOnline} onClick={() => convert(request.id)}>
-                  Skapa arbetsorder
+                  Skapa åtgärdsunderlag
                 </button>
                 <button disabled={isPending || !databaseOnline} onClick={() => close(request.id)}>
                   Stäng

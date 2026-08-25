@@ -1,76 +1,148 @@
+import { prisma } from "../../lib/prisma";
+import { houseReportStatusLabel, normalizeHouseReportStatus } from "../../lib/house-report-status";
 import AdminSidebar from "./admin-sidebar";
 
-const foundationStats = [
-  ["Organisation", "Rehn VVS", "Tenant aktiv"],
-  ["Användare", "4 roller", "Admin, arbetsledare, montör, kund"],
-  ["Kunder", "2 demo", "Kopplade till fastigheter"],
-  ["Databas", "Prisma", "Schema validerat"],
+export const dynamic = "force-dynamic";
+
+const companyId = "org_rehn_vvs";
+
+type DashboardReport = {
+  id: string;
+  propertyId: string;
+  customer: string;
+  address: string;
+  status: string;
+  updatedAt: string;
+};
+
+type DashboardData = {
+  databaseOnline: boolean;
+  customerFormStarted: number;
+  customerFormCompleted: number;
+  visitsScheduled: number;
+  inspectionInProgress: number;
+  reviewRequired: number;
+  publishedThisMonth: number;
+  highRiskIssues: number;
+  recentReports: DashboardReport[];
+};
+
+async function getDashboardData(): Promise<DashboardData> {
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  try {
+    const [
+      customerFormStarted,
+      customerFormCompleted,
+      visitsScheduled,
+      inspectionInProgress,
+      reviewRequired,
+      publishedThisMonth,
+      highRiskIssues,
+      reports,
+    ] = await Promise.all([
+      prisma.formSubmission.count({ where: { companyId, status: "DRAFT" } }),
+      prisma.formSubmission.count({ where: { companyId, status: { not: "DRAFT" } } }),
+      prisma.houseReport.count({ where: { companyId, status: "visit_scheduled" } }),
+      prisma.houseReport.count({ where: { companyId, status: "inspection_in_progress" } }),
+      prisma.houseReport.count({ where: { companyId, status: { in: ["review_required", "READY_FOR_REVIEW", "SUBMITTED"] } } }),
+      prisma.houseReport.count({ where: { companyId, status: "published", publishedAt: { gte: monthStart } } }),
+      prisma.component.count({ where: { companyId, riskLevel: "HIGH" } }),
+      prisma.houseReport.findMany({
+        where: { companyId },
+        include: {
+          property: {
+            include: {
+              customer: true,
+            },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 6,
+      }),
+    ]);
+
+    return {
+      databaseOnline: true,
+      customerFormStarted,
+      customerFormCompleted,
+      visitsScheduled,
+      inspectionInProgress,
+      reviewRequired,
+      publishedThisMonth,
+      highRiskIssues,
+      recentReports: reports.map((report) => ({
+        id: report.id,
+        propertyId: report.propertyId,
+        customer: report.property.customer.name,
+        address: report.property.address,
+        status: report.status,
+        updatedAt: report.updatedAt.toLocaleDateString("sv-SE"),
+      })),
+    };
+  } catch {
+    return {
+      databaseOnline: false,
+      customerFormStarted: 0,
+      customerFormCompleted: 0,
+      visitsScheduled: 0,
+      inspectionInProgress: 0,
+      reviewRequired: 0,
+      publishedThisMonth: 0,
+      highRiskIssues: 0,
+      recentReports: [],
+    };
+  }
+}
+
+const workflow = [
+  ["1", "Kund", "Kunduppgifter och eventuell självdeklaration"],
+  ["2", "Fastighet", "Adress, byggår, system och grunddata"],
+  ["3", "Husrapport", "Rapportutkast kopplat till en fastighet"],
+  ["4", "Besiktning", "Montörens genomgång på plats"],
+  ["5", "Brister, produkter och bilder", "Underlag som fyller rapporten"],
+  ["6", "Granskning", "Kontroll innan kunden får rapporten"],
+  ["7", "Publicerad kundrapport", "Låst kundvy och PDF/utskrift"],
 ];
 
-const queue = [
-  ["Kundärende", "Tryckfall i värmesystem", "Skapa arbetsorder"],
-  ["Rekommendation", "Expansionskärl hög risk", "Skicka offert"],
-  ["Portalaktivitet", "Kund öppnade 20-årsplan", "Följ upp"],
-  ["Dokument", "Egenkontroll signerad", "Lås journalversion"],
-];
+export default async function AdminPage() {
+  const data = await getDashboardData();
 
-const systemChecks = [
-  ["Säker inloggning", "Förberedd", "AuthAccount, sessionshash och MFA-flagga finns i schema"],
-  ["Behörighetssystem", "Aktivt i kod", "Tenant-kontroll före rollpolicy"],
-  ["Dokument/bilder", "Modellerat", "Storage key, checksum, version och synlighet"],
-  ["Ändringshistorik", "Modellerat", "AuditLog med before/after och IP-adress"],
-  ["Backup", "Förberett", "BackupJob spårar körningar och checksum"],
-  ["GDPR", "Förberett", "Export, radering och rättning som ärenden"],
-];
+  const kpis = [
+    ["Kundformulär", data.customerFormStarted, "Påbörjade underlag"],
+    ["Besök", data.visitsScheduled, "Bokade platsbesök"],
+    ["Pågående", data.inspectionInProgress, "Rapporter under arbete"],
+    ["Granskning", data.reviewRequired, "Väntar på kontroll"],
+    ["Publicerade", data.publishedThisMonth, "Denna månad"],
+    ["Högrisk", data.highRiskIssues, "Brister att prioritera"],
+  ];
 
-const documents = [
-  ["RVM Husstatus Premium Rapport", "Kund", "Version 1", "PDF"],
-  ["Egenkontroll expansionskärl", "Kund", "Signerad", "PDF"],
-  ["Bild teknikrum", "Internt", "Original sparat", "JPG"],
-  ["Serviceavtal utkast", "Internt", "Ej publicerad", "PDF"],
-];
-
-const audit = [
-  ["14:02", "Admin Rehn", "Skapade kund", "Anna & Erik Svensson"],
-  ["14:07", "Arbetsledare Rehn", "Publicerade dokument", "Husstatusrapport"],
-  ["14:11", "System", "Backup köad", "DATABASE_AND_DOCUMENTS"],
-  ["14:18", "Kund", "Öppnade portal", "Villa Ängby"],
-];
-
-export default function AdminPage() {
   return (
     <main className="adminShell">
-      <AdminSidebar active="admin" />
+      <AdminSidebar active="admin" label="Husrapport" />
 
       <section className="adminWork">
         <header className="adminTop">
           <div>
-            <p className="sectionKicker">Fas 1 kontrollrum</p>
-            <h1>Rehn VVS-grunden för kund, fastighet, portal och husrapport.</h1>
+            <p className="sectionKicker">RVM Husrapport</p>
+            <h1>Översikt för kunder, fastigheter och husrapporter.</h1>
             <p>
-              Adminytan visar fundamentet först. När databasen är igång blir samma ytor datadrivna:
-              kunder, fastigheter, dokument, historik, backup och GDPR.
+              Det synliga systemet är nu fokuserat på ett arbetsflöde: kund, fastighet, ny Husrapport,
+              besiktning, brister, produkter, bilder, granskning och publicerad kundrapport.
             </p>
+            {!data.databaseOnline ? <p className="databaseNotice">Databasen svarar inte just nu. Sidan visas utan live-data.</p> : null}
           </div>
           <div className="portalActions">
-            <a className="buttonLink" href="/admin/customers">Ny kund</a>
-            <a className="buttonLink" href="/admin/properties">Fastigheter</a>
-            <a className="buttonLink" href="/admin/installations">Installationer</a>
-            <a className="buttonLink" href="/admin/energy-analysis">Energianalys värme</a>
-            <a className="buttonLink" href="/admin/report-import">Rapportimport</a>
-            <a className="buttonLink" href="/admin/access">Åtkomst</a>
-            <a className="buttonLink" href="/admin/requests">Visa ärenden</a>
-            <a className="buttonLink" href="/admin/workorders">Arbetsorder</a>
-            <a className="buttonLink" href="/admin/invoicing">Fakturaunderlag</a>
-            <a className="buttonLink" href="/admin/documents">Dokument</a>
-            <a className="buttonLink" href="/admin/history">Historik</a>
-            <a className="buttonLink" href="/admin/foundation">Visa fundament</a>
-            <a className="buttonLink" href="/admin/legal">Lagligt</a>
+            <a className="buttonLink primary" href="/admin/new-report">Ny Husrapport</a>
+            <a className="buttonLink" href="/admin/reports">Husrapporter</a>
+            <a className="buttonLink" href="/admin/customers">Kunder & Fastigheter</a>
           </div>
         </header>
 
         <section className="adminKpis">
-          {foundationStats.map(([label, value, detail]) => (
+          {kpis.map(([label, value, detail]) => (
             <article className="portalPanel" key={label}>
               <span>{label}</span>
               <strong>{value}</strong>
@@ -79,86 +151,68 @@ export default function AdminPage() {
           ))}
         </section>
 
-        <section className="adminGrid">
-          <article className="portalPanel">
-            <div className="panelTitle">
-              <h3>Portalhändelser</h3>
-              <span>Från kundkonto till åtgärd</span>
-            </div>
-            <div className="queue">
-              {queue.map(([type, title, action]) => (
-                <div key={title}>
-                  <span>{type}</span>
-                  <strong>{title}</strong>
-                  <a className="buttonLink" href="/admin/requests">{action}</a>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="portalPanel">
-            <div className="panelTitle">
-              <h3>Fas 1-status</h3>
-              <span>Produktionsdelar som måste sitta</span>
-            </div>
-            <div className="systemChecks">
-              {systemChecks.map(([name, status, detail]) => (
-                <div key={name}>
-                  <strong>{name}</strong>
-                  <b>{status}</b>
-                  <span>{detail}</span>
-                </div>
-              ))}
-            </div>
-          </article>
-        </section>
-
         <section className="adminGrid lower">
           <article className="portalPanel">
             <div className="panelTitle">
-              <h3>Dokument och bildlagring</h3>
-              <span>Publicering styr vad kunden ser</span>
+              <h3>Arbetsflöde</h3>
+              <span>Det montören och kontoret ska följa</span>
             </div>
-            <table>
-              <thead>
-                <tr><th>Dokument</th><th>Synlighet</th><th>Status</th><th>Typ</th></tr>
-              </thead>
-              <tbody>
-                {documents.map((row) => (
-                  <tr key={row.join("-")}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="queue">
+              {workflow.map(([step, title, detail]) => (
+                <div key={step}>
+                  <span>{step}</span>
+                  <strong>{title}</strong>
+                  <small>{detail}</small>
+                </div>
+              ))}
+            </div>
           </article>
 
           <article className="portalPanel">
             <div className="panelTitle">
-              <h3>Senaste historik</h3>
-              <span>Audit log</span>
+              <h3>Senaste husrapporter</h3>
+              <span>Status per kund och fastighet</span>
             </div>
             <div className="auditList">
-              {audit.map(([time, actor, action, entity]) => (
-                <div key={`${time}-${action}`}>
-                  <time>{time}</time>
-                  <strong>{actor}</strong>
-                  <span>{action}</span>
-                  <b>{entity}</b>
+              {data.recentReports.length ? data.recentReports.map((report) => (
+                <div key={report.id}>
+                  <time>{report.updatedAt}</time>
+                  <strong>{report.customer}</strong>
+                  <span>{houseReportStatusLabel(report.status)}</span>
+                  <a className="buttonLink" href={`/husrapport?propertyId=${report.propertyId}`}>Öppna</a>
                 </div>
-              ))}
+              )) : (
+                <div>
+                  <time>Ingen</time>
+                  <strong>Rapport saknas</strong>
+                  <span>Skapa första Husrapporten</span>
+                  <a className="buttonLink" href="/admin/new-report">Starta</a>
+                </div>
+              )}
             </div>
           </article>
         </section>
 
         <section className="portalPanel">
           <div className="panelTitle">
-            <h3>Databas och drift</h3>
-            <span>Gratis lokal Postgres är förberedd</span>
+            <h3>Statusmodell</h3>
+            <span>Samma status kan användas i listor, kundvy och rapportflöde</span>
           </div>
           <div className="opsGrid">
-            <div><strong>Schema</strong><span>Prisma validerat</span></div>
-            <div><strong>Seed</strong><span>Rehn VVS-data redo</span></div>
-            <div><strong>Databas</strong><span>Väntar på lokal Postgres/Docker</span></div>
-            <div><strong>Nästa steg</strong><span>Planering, tidrapport och fakturaunderlag</span></div>
+            {[
+              "customer_form_started",
+              "customer_form_completed",
+              "visit_scheduled",
+              "inspection_in_progress",
+              "review_required",
+              "published",
+              "archived",
+            ].map((status) => (
+              <div key={status}>
+                <strong>{houseReportStatusLabel(status)}</strong>
+                <span>{normalizeHouseReportStatus(status)}</span>
+              </div>
+            ))}
           </div>
         </section>
       </section>

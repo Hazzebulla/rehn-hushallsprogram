@@ -1,8 +1,8 @@
-import Image from "next/image";
 import { prisma } from "../../../lib/prisma";
 import { extractHusstatusImages, type HusstatusImage } from "../../../lib/husstatus-images";
 import AdminSidebar from "../admin-sidebar";
 import { rvmSections } from "../husstatus-form/spec";
+import ImagesView, { type CustomerImageGroup } from "./images-view";
 
 export const dynamic = "force-dynamic";
 
@@ -36,13 +36,24 @@ async function getImages(): Promise<{ databaseOnline: boolean; images: Husstatus
   }
 }
 
-function groupByCustomer(images: HusstatusImage[]) {
+function groupByCustomer(images: HusstatusImage[]): CustomerImageGroup[] {
   const groups = new Map<string, HusstatusImage[]>();
   for (const image of images) {
     const key = `${image.customerId}:${image.propertyId}`;
     groups.set(key, [...(groups.get(key) ?? []), image]);
   }
-  return Array.from(groups.entries()).map(([key, items]) => ({ key, images: items }));
+  return Array.from(groups.entries()).map(([key, items]) => {
+    const first = items[0];
+    return {
+      key,
+      customerId: first.customerId,
+      customerName: first.customerName,
+      propertyId: first.propertyId,
+      propertyName: first.propertyName,
+      address: first.address,
+      images: items,
+    };
+  }).sort((a, b) => a.customerName.localeCompare(b.customerName, "sv"));
 }
 
 export default async function AdminImagesPage() {
@@ -98,7 +109,7 @@ export default async function AdminImagesPage() {
           </article>
         </section>
 
-        <section className="portalPanel">
+        <section className="portalPanel imageLibraryPanel">
           <div className="panelTitle">
             <h3>Personliga bibliotek</h3>
             <span>{customerGroups.length} kund/fastighet-grupper</span>
@@ -111,44 +122,7 @@ export default async function AdminImagesPage() {
               <a className="buttonLink" href="/admin/husstatus-form">Lägg in bilder</a>
             </div>
           ) : (
-            <div className="customerImageLibrary">
-              {customerGroups.map((group) => {
-                const first = group.images[0];
-                return (
-                  <article className="imageLibraryGroup" key={group.key}>
-                    <header>
-                      <div>
-                        <span>{first.customerName}</span>
-                        <strong>{first.propertyName}</strong>
-                        <small>{first.address}</small>
-                      </div>
-                      <div className="portalActions compact">
-                        <a className="buttonLink" href={`/api/admin/images/download?propertyId=${first.propertyId}`}>Ladda ner mapp</a>
-                        <a className="buttonLink" href={`/husrapport?propertyId=${first.propertyId}`}>Husrapport</a>
-                      </div>
-                    </header>
-                    <div className="imageLibraryGrid">
-                      {group.images.map((image) => (
-                        <figure key={image.id}>
-                          <Image
-                            alt={`${image.fieldLabel} - ${image.customerName}`}
-                            height={180}
-                            src={image.dataUrl}
-                            unoptimized
-                            width={240}
-                          />
-                          <figcaption>
-                            <span>{image.sectionTitle}</span>
-                            <strong>{image.fieldLabel}</strong>
-                            <small>{image.visibility === "CUSTOMER" ? "Kundsynlig" : "Intern"} · {image.fileName}</small>
-                          </figcaption>
-                        </figure>
-                      ))}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+            <ImagesView groups={customerGroups} />
           )}
         </section>
       </section>
