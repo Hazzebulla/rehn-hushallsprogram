@@ -1357,6 +1357,15 @@ td {
   grid-template-columns: 270px 1fr;
 }
 
+.demoInspectionShell {
+  display: block;
+}
+
+.demoInspectionShell .technicianInspection {
+  width: min(1540px, 100%);
+  margin: 0 auto;
+}
+
 .adminSide {
   position: sticky;
   top: 0;
@@ -1733,7 +1742,7 @@ td {
 
 .inspectionLayout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -1798,8 +1807,9 @@ td {
   z-index: 5;
   top: 0;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(118px, 1fr));
   gap: 8px;
+  overflow-x: auto;
   padding: 10px;
   border: 1px solid rgba(70, 158, 176, 0.32);
   border-radius: 8px;
@@ -1813,7 +1823,7 @@ td {
 
 .inspectionChecks div {
   display: grid;
-  grid-template-columns: minmax(170px, 1fr) repeat(4, minmax(0, 120px));
+  grid-template-columns: minmax(190px, 1fr) repeat(4, minmax(108px, 120px));
   gap: 8px;
   align-items: center;
   padding: 10px;
@@ -1858,6 +1868,7 @@ td {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .inspectionForm .panelTitle,
