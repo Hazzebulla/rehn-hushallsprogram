@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { calculateEstimate } from "../../../lib/pricing-engine";
-import { analyzeSupplierDiscountLetter } from "../../../lib/supplier-discount-letter-parser";
+import {
+  analyzeSupplierDiscountLetter,
+  dateOnlyToPrismaDate,
+  decodeSupplierDiscountLetterText,
+} from "../../../lib/supplier-discount-letter-parser";
 import { getCurrentSessionUser } from "../../../lib/session";
 
 const COMPANY_ID = "org_rehn_vvs";
@@ -187,8 +191,7 @@ async function requireInternalUser() {
 function dateValue(value: FormDataEntryValue | null) {
   const raw = text(value);
   if (!raw) return null;
-  const date = new Date(`${raw}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return dateOnlyToPrismaDate(raw);
 }
 
 export async function savePricingSettingsAction(formData: FormData) {
@@ -390,9 +393,10 @@ export async function previewStructuredDiscountLetterAction(formData: FormData) 
 
   if (!supplierId || !(file instanceof File) || file.size === 0) return;
 
-  const rawText = await file.text();
+  const rawText = decodeSupplierDiscountLetterText(await file.arrayBuffer());
   const analysis = analyzeSupplierDiscountLetter(rawText);
   const parsedRows = analysis.rows.filter((row) => row.parseStatus === "parsed");
+  const batchValidTo = validTo ?? dateOnlyToPrismaDate(parsedRows.find((row) => row.validityDate)?.validityDate);
   const duplicateKeys = new Map<string, string>();
 
   if (parsedRows.length) {
@@ -421,7 +425,7 @@ export async function previewStructuredDiscountLetterAction(formData: FormData) 
       row.discountGroupCode ?? "",
       row.priceLevel ?? "",
       validFrom?.toISOString().slice(0, 10) ?? "",
-      validTo?.toISOString().slice(0, 10) ?? "",
+      (dateOnlyToPrismaDate(row.validityDate) ?? batchValidTo)?.toISOString().slice(0, 10) ?? "",
     ].join("|");
     const duplicateOfRuleId = duplicateKeys.get(key);
     return row.parseStatus === "parsed" && duplicateOfRuleId
@@ -436,7 +440,8 @@ export async function previewStructuredDiscountLetterAction(formData: FormData) 
       sourceFileName: file.name,
       importedBy: user.id,
       validFrom,
-      validTo,
+      validTo: batchValidTo,
+      parserVersion: analysis.parserVersion,
       totalRows: analysis.totalRows,
       parsedRows: rowsWithDuplicates.filter((row) => row.parseStatus === "parsed").length,
       ignoredRows: rowsWithDuplicates.filter((row) => row.parseStatus === "ignored").length,
@@ -453,7 +458,7 @@ export async function previewStructuredDiscountLetterAction(formData: FormData) 
           rawDiscountValue: row.rawDiscountValue,
           description: row.description,
           priceLevel: row.priceLevel,
-          validityDate: validTo,
+          validityDate: dateOnlyToPrismaDate(row.validityDate) ?? batchValidTo,
           parseStatus: row.parseStatus,
           errorMessage: row.errorMessage,
           duplicateOfRuleId: "duplicateOfRuleId" in row ? row.duplicateOfRuleId : null,
@@ -487,7 +492,7 @@ export async function confirmStructuredDiscountImportAction(formData: FormData) 
 
   let importedRows = 0;
   for (const row of batch.rows) {
-    if (!row.discountGroupCode || !row.rawDiscountValue || !row.description || !row.priceLevel) continue;
+    if (!row.discountGroupCode || !row.rawDiscountValue || !row.description) continue;
 
     if (row.parseStatus === "duplicate" && duplicateMode === "skip") continue;
     if (row.parseStatus === "duplicate" && duplicateMode === "update") {
@@ -498,7 +503,7 @@ export async function confirmStructuredDiscountImportAction(formData: FormData) 
           discountGroupCode: row.discountGroupCode,
           priceLevel: row.priceLevel,
           validFrom: batch.validFrom,
-          validTo: batch.validTo,
+          validTo: row.validityDate ?? batch.validTo,
           active: true,
         },
       });
@@ -530,7 +535,7 @@ export async function confirmStructuredDiscountImportAction(formData: FormData) 
         productGroup: row.description,
         discountPercent: 0,
         validFrom: batch.validFrom,
-        validTo: batch.validTo,
+        validTo: row.validityDate ?? batch.validTo,
         importBatchId: batch.id,
         sourceNote: `Strukturerat rabattbrev ${batch.sourceFileName}, rad ${row.rowNumber}. RawDiscountValue är inte verifierat som procent.`,
       },

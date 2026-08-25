@@ -1,5 +1,6 @@
 import { prisma } from "../../../lib/prisma";
 import { defaultPricingSettings, formatSekFromOre } from "../../../lib/pricing-engine";
+import { formatDateOnly } from "../../../lib/supplier-discount-letter-parser";
 import AdminSidebar from "../admin-sidebar";
 import {
   createActionTemplateAction,
@@ -23,7 +24,7 @@ function sekInput(ore: number) {
 }
 
 function dateLabel(value: Date | null | undefined) {
-  return value ? value.toISOString().slice(0, 10) : "-";
+  return formatDateOnly(value);
 }
 
 async function getPricingData(discountBatchId?: string) {
@@ -418,8 +419,9 @@ export default async function PricingPage({
             </section>
             <div className="pricingImportHelp wide">
               <strong>Identifierat format</strong>
-              <span>Gruppkod: tecken 1-6. Råvärde: tecken 7-10. Nollutfyllnad följer innan beskrivning.</span>
-              <span>Prisnivå måste sluta med P0, P1, P2, LA eller LB. Råvärdet sparas som rawDiscountValue och räknas inte som procent.</span>
+              <span>Parsern söker rabattgruppen efter prefix/kundnummer: BA010, CA600, PCL110, PCM110, TF460 och liknande.</span>
+              <span>Sista sex siffrorna tolkas som YYMMDD. Prisnivå P0/P1/P2/LA/LB plockas ur beskrivningen om den finns.</span>
+              <span>Råvärdet sparas som rawDiscountValue och räknas inte som procent.</span>
             </div>
             <form className="pricingInlineForm" action={confirmStructuredDiscountImportAction}>
               <input name="batchId" type="hidden" value={data.previewBatch.id} />
@@ -433,17 +435,18 @@ export default async function PricingPage({
               <button className="buttonLink primary" disabled={data.previewBatch.status !== "preview"} type="submit">Bekräfta import</button>
             </form>
             <table>
-              <thead><tr><th>Rad</th><th>Gruppkod</th><th>Beskrivning</th><th>Prisnivå</th><th>Råvärde</th><th>Datum</th><th>Status</th></tr></thead>
+              <thead><tr><th>Rad</th><th>Gruppkod</th><th>Beskrivning</th><th>Prisnivå</th><th>Råvärde</th><th>Datum</th><th>Status</th><th>Felorsak</th></tr></thead>
               <tbody>
                 {data.previewBatch.rows.map((row) => (
                   <tr key={row.id}>
                     <td>{row.rowNumber}</td>
                     <td>{row.discountGroupCode ?? "-"}</td>
-                    <td>{row.description ?? row.errorMessage ?? row.originalRawLine.slice(0, 80)}</td>
+                    <td>{row.description ?? "-"}</td>
                     <td>{row.priceLevel ?? "-"}</td>
                     <td>{row.rawDiscountValue ?? "-"}</td>
                     <td>{dateLabel(row.validityDate)}</td>
                     <td>{row.parseStatus}</td>
+                    <td>{row.errorMessage ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>
