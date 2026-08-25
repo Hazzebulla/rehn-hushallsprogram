@@ -4,6 +4,22 @@ import { prisma } from "./prisma";
 import type { FoundationRole } from "./foundation";
 
 export const SESSION_COOKIE = "rehn_vvs_session";
+export const LOCAL_DEV_SESSION_TOKEN = "local-dev-rehn-vvs-session";
+
+export function isLocalDevSessionToken(token: string | undefined) {
+  return process.env.NODE_ENV === "development" && token === LOCAL_DEV_SESSION_TOKEN;
+}
+
+export function localDevSessionUser() {
+  return {
+    id: "local-dev-admin",
+    companyId: "org_rehn_vvs",
+    name: "Rehn VVS lokal admin",
+    email: "info@rehnvvsmontage.se",
+    role: "ADMIN" as FoundationRole,
+    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8),
+  };
+}
 
 export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -18,6 +34,7 @@ export async function getCurrentSessionUser() {
   const token = cookieStore.get(SESSION_COOKIE)?.value;
 
   if (!token) return null;
+  if (isLocalDevSessionToken(token)) return localDevSessionUser();
 
   const session = await prisma.authSession.findFirst({
     where: {
