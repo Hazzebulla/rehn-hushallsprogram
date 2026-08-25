@@ -14,15 +14,21 @@ export async function loginAction(formData: FormData) {
 
   if (!email || !password) redirect(loginErrorPath("missing", next));
 
-  const account = await prisma.authAccount.findFirst({
-    where: {
-      companyId: COMPANY_ID,
-      provider: "EMAIL",
-      providerAccountId: email,
-      user: { active: true },
-    },
-    include: { user: true },
-  });
+  let account;
+  try {
+    account = await prisma.authAccount.findFirst({
+      where: {
+        companyId: COMPANY_ID,
+        provider: "EMAIL",
+        providerAccountId: email,
+        user: { active: true },
+      },
+      include: { user: true },
+    });
+  } catch (error) {
+    console.error("Login database error", error);
+    redirect(loginErrorPath("database", next));
+  }
 
   if (!account || !verifyPassword(password, account.passwordHash)) redirect(loginErrorPath("invalid", next));
 
@@ -64,7 +70,7 @@ function safeNextPath(value: string) {
   return value;
 }
 
-function loginErrorPath(error: "missing" | "invalid", next: string | null) {
+function loginErrorPath(error: "missing" | "invalid" | "database", next: string | null) {
   const params = new URLSearchParams({ error });
   if (next) params.set("next", next);
   return `/login?${params.toString()}`;

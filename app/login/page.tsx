@@ -28,7 +28,11 @@ export default async function LoginPage({ searchParams }: { searchParams?: Promi
         </p>
         {error ? (
           <div className="persistenceNote offline">
-            {error === "missing" ? "Fyll i e-post och lösenord." : "Fel e-post eller lösenord."}
+            {error === "missing"
+              ? "Fyll i e-post och lösenord."
+              : error === "database"
+                ? "Databasen svarar inte just nu. Försök igen senare eller kontrollera databaskvoten."
+                : "Fel e-post eller lösenord."}
           </div>
         ) : null}
         <form action={loginAction} className="loginForm">
