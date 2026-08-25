@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
+import {
+  analyzeDahlPriceListRows,
+  dahlFileHash,
+  dateOnlyToPrismaDate as dahlDateOnlyToPrismaDate,
+} from "../../../lib/dahl-price-list-importer";
 import { calculateEstimate } from "../../../lib/pricing-engine";
 import {
   analyzeSupplierDiscountLetter,
@@ -13,6 +18,7 @@ import {
 import { getCurrentSessionUser } from "../../../lib/session";
 
 const COMPANY_ID = "org_rehn_vvs";
+const DAHL_SUPPLIER_NAME = "Dahl";
 
 function text(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -182,6 +188,29 @@ async function textFromDiscountImportFile(file: File) {
   return file.text();
 }
 
+async function rowsFromSpreadsheetLikeFile(file: File) {
+  const lowerName = file.name.toLowerCase();
+  const bytes = Buffer.from(await file.arrayBuffer());
+  if (
+    lowerName.endsWith(".xlsx")
+    || lowerName.endsWith(".xls")
+    || file.type.includes("spreadsheet")
+    || file.type.includes("excel")
+  ) {
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.read(bytes, { type: "buffer", cellDates: false, raw: false });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!sheet) return { bytes, rows: [] as unknown[][] };
+    return { bytes, rows: XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "" }) as unknown[][] };
+  }
+
+  const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  const textValue = decoded.includes("\uFFFD") ? new TextDecoder("windows-1252", { fatal: false }).decode(bytes) : decoded;
+  const lines = textValue.split(/\r?\n/);
+  const delimiter = lines.find((line) => line.includes("\t")) ? "\t" : lines.find((line) => line.includes(";")) ? ";" : ",";
+  return { bytes, rows: lines.map((line) => line.split(delimiter)) };
+}
+
 async function requireInternalUser() {
   const user = await getCurrentSessionUser();
   if (!user || user.role === "CUSTOMER") throw new Error("Saknar behörighet.");
@@ -192,6 +221,14 @@ function dateValue(value: FormDataEntryValue | null) {
   const raw = text(value);
   if (!raw) return null;
   return dateOnlyToPrismaDate(raw);
+}
+
+async function getOrCreateDahlSupplier(companyId: string) {
+  return prisma.supplier.upsert({
+    where: { companyId_name: { companyId, name: DAHL_SUPPLIER_NAME } },
+    update: { active: true },
+    create: { companyId, name: DAHL_SUPPLIER_NAME, active: true },
+  });
 }
 
 export async function savePricingSettingsAction(formData: FormData) {
@@ -567,6 +604,288 @@ export async function confirmStructuredDiscountImportAction(formData: FormData) 
 
   revalidatePath("/admin/pricing");
   redirect(`/admin/pricing?discountBatchId=${batch.id}`);
+}
+
+export async function previewDahlPriceListAction(formData: FormData) {
+  const user = await requireInternalUser();
+  const companyId = user.companyId || COMPANY_ID;
+  const file = formData.get("dahlPriceFile");
+  if (!(file instanceof File) || file.size === 0) return;
+
+  const supplier = await getOrCreateDahlSupplier(companyId);
+  const { bytes, rows } = await rowsFromSpreadsheetLikeFile(file);
+  const fileHash = dahlFileHash(bytes);
+  const analysis = analyzeDahlPriceListRows(rows);
+  const validFrom = dahlDateOnlyToPrismaDate(analysis.validFrom);
+  const validTo = dahlDateOnlyToPrismaDate(analysis.validTo);
+  const validRows = analysis.rows.filter((row) => row.parseStatus === "parsed" && row.supplierArticleNumber);
+  const articleNumbers = [...new Set(validRows.map((row) => row.supplierArticleNumber).filter((value): value is string => Boolean(value)))];
+
+  const [existingProducts, alreadyConfirmedFile, existingPriceLists] = await Promise.all([
+    articleNumbers.length
+      ? prisma.supplierProduct.findMany({
+          where: { companyId, supplierId: supplier.id, supplierArticleNumber: { in: articleNumbers } },
+          select: { id: true, supplierArticleNumber: true, supplierName: true, calculationGroup: true, unit: true, statusRaw: true },
+        })
+      : Promise.resolve([]),
+    prisma.supplierPriceImportBatch.findFirst({
+      where: { companyId, supplierId: supplier.id, fileHash, status: "confirmed" },
+      select: { id: true },
+    }),
+    analysis.priceListCode
+      ? prisma.supplierPriceList.findMany({
+          where: { companyId, supplierId: supplier.id, code: analysis.priceListCode, validFrom, validTo },
+          select: {
+            id: true,
+            prices: { select: { id: true, priceRawValue: true, supplierProduct: { select: { supplierArticleNumber: true } } } },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const productMap = new Map(existingProducts.map((product) => [product.supplierArticleNumber, product]));
+  const existingPriceMap = new Map<string, { id: string; priceRawValue: string }>();
+  for (const list of existingPriceLists) {
+    for (const price of list.prices) existingPriceMap.set(price.supplierProduct.supplierArticleNumber, price);
+  }
+
+  let existingProductCount = 0;
+  let newProductCount = 0;
+  let priceChanges = 0;
+  let duplicateRows = 0;
+  const rowsWithPreview = analysis.rows.map((row) => {
+    if (row.parseStatus !== "parsed" || !row.supplierArticleNumber) return row;
+    const product = productMap.get(row.supplierArticleNumber);
+    if (product) existingProductCount += 1;
+    else newProductCount += 1;
+    const existingPrice = existingPriceMap.get(row.supplierArticleNumber);
+    if (existingPrice) {
+      duplicateRows += 1;
+      if (existingPrice.priceRawValue !== row.priceRawValue) priceChanges += 1;
+      return { ...row, parseStatus: "duplicate" as const, duplicateOfPriceId: existingPrice.id };
+    }
+    return row;
+  });
+
+  const batch = await prisma.supplierPriceImportBatch.create({
+    data: {
+      companyId,
+      supplierId: supplier.id,
+      sourceFileName: file.name,
+      fileHash,
+      priceListCode: analysis.priceListCode,
+      validFrom,
+      validTo,
+      totalRows: analysis.totalRows,
+      productRows: analysis.productRows,
+      validRows: rowsWithPreview.filter((row) => row.parseStatus === "parsed").length,
+      invalidRows: rowsWithPreview.filter((row) => row.parseStatus === "parse_error").length,
+      ignoredRows: analysis.ignoredRows,
+      duplicateRows: duplicateRows + (alreadyConfirmedFile ? analysis.validRows : 0),
+      existingProducts: existingProductCount,
+      newProducts: newProductCount,
+      priceChanges,
+      importedBy: user.id,
+      formatSummary: {
+        ...analysis.formatSummary,
+        duplicateFileWarning: alreadyConfirmedFile ? "Den här filen verkar redan vara importerad." : null,
+      } as Prisma.InputJsonValue,
+      rows: {
+        create: rowsWithPreview.slice(0, 25000).map((row) => ({
+          companyId,
+          supplierId: supplier.id,
+          rowNumber: row.rowNumber,
+          originalRawRow: row.originalRawRow as Prisma.InputJsonValue,
+          supplierArticleNumber: row.supplierArticleNumber,
+          rskNumber: row.rskNumber,
+          supplierName: row.supplierName,
+          calculationGroup: row.calculationGroup,
+          unit: row.unit,
+          priceRawValue: row.priceRawValue,
+          priceDecimal: row.priceDecimal,
+          ntoRawValue: row.ntoRawValue,
+          priceListCode: row.priceListCode,
+          statusRaw: row.statusRaw,
+          validFrom,
+          validTo,
+          parseStatus: "duplicateOfPriceId" in row ? "duplicate" : row.parseStatus,
+          errorMessage: row.errorMessage,
+          duplicateOfPriceId: "duplicateOfPriceId" in row ? row.duplicateOfPriceId : null,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/admin/pricing");
+  redirect(`/admin/pricing?dahlBatchId=${batch.id}`);
+}
+
+export async function confirmDahlPriceListImportAction(formData: FormData) {
+  const user = await requireInternalUser();
+  const companyId = user.companyId || COMPANY_ID;
+  const batchId = text(formData.get("dahlBatchId"));
+  if (!batchId) return;
+
+  const batch = await prisma.supplierPriceImportBatch.findFirst({
+    where: { id: batchId, companyId, status: "preview" },
+    include: { rows: { where: { parseStatus: { in: ["parsed", "duplicate"] } }, orderBy: { rowNumber: "asc" } } },
+  });
+  if (!batch) return;
+
+  const alreadyConfirmedFile = await prisma.supplierPriceImportBatch.findFirst({
+    where: { companyId, supplierId: batch.supplierId, fileHash: batch.fileHash, status: "confirmed", id: { not: batch.id } },
+    select: { id: true },
+  });
+  if (alreadyConfirmedFile) {
+    await prisma.supplierPriceImportBatch.update({ where: { id: batch.id }, data: { status: "duplicate_file", duplicateRows: batch.rows.length } });
+    redirect(`/admin/pricing?dahlBatchId=${batch.id}`);
+  }
+
+  const existingPriceList = await prisma.supplierPriceList.findFirst({
+    where: {
+        companyId,
+        supplierId: batch.supplierId,
+        code: batch.priceListCode || "OKÄND",
+        validFrom: batch.validFrom,
+        validTo: batch.validTo,
+    },
+  });
+  const priceList = existingPriceList
+    ? await prisma.supplierPriceList.update({
+        where: { id: existingPriceList.id },
+        data: {
+          name: batch.priceListCode || "Okänd Dahl-prislista",
+          importedAt: new Date(),
+          sourceFileName: batch.sourceFileName,
+          fileHash: batch.fileHash,
+          active: true,
+        },
+      })
+    : await prisma.supplierPriceList.create({
+        data: {
+          companyId,
+          supplierId: batch.supplierId,
+          code: batch.priceListCode || "OKÄND",
+          name: batch.priceListCode || "Okänd Dahl-prislista",
+          validFrom: batch.validFrom,
+          validTo: batch.validTo,
+          importedAt: new Date(),
+          sourceFileName: batch.sourceFileName,
+          fileHash: batch.fileHash,
+          active: true,
+        },
+      });
+
+  let newProducts = 0;
+  let updatedProducts = 0;
+  let newPrices = 0;
+  let duplicates = 0;
+
+  for (const row of batch.rows) {
+    if (!row.supplierArticleNumber || !row.supplierName || !row.priceDecimal) continue;
+    const existingProduct = await prisma.supplierProduct.findUnique({
+      where: {
+        companyId_supplierId_supplierArticleNumber: {
+          companyId,
+          supplierId: batch.supplierId,
+          supplierArticleNumber: row.supplierArticleNumber,
+        },
+      },
+    });
+
+    const product = await prisma.supplierProduct.upsert({
+      where: {
+        companyId_supplierId_supplierArticleNumber: {
+          companyId,
+          supplierId: batch.supplierId,
+          supplierArticleNumber: row.supplierArticleNumber,
+        },
+      },
+      update: {
+        rskNumber: row.rskNumber,
+        supplierName: row.supplierName,
+        calculationGroup: row.calculationGroup,
+        unit: row.unit,
+        statusRaw: row.statusRaw,
+        active: true,
+      },
+      create: {
+        companyId,
+        supplierId: batch.supplierId,
+        supplierArticleNumber: row.supplierArticleNumber,
+        rskNumber: row.rskNumber,
+        supplierName: row.supplierName,
+        calculationGroup: row.calculationGroup,
+        unit: row.unit,
+        statusRaw: row.statusRaw,
+        active: true,
+      },
+    });
+    if (existingProduct) updatedProducts += 1;
+    else newProducts += 1;
+
+    const existingPrice = await prisma.supplierPrice.findFirst({
+      where: { companyId, supplierProductId: product.id, priceListId: priceList.id },
+      select: { id: true },
+    });
+    if (existingPrice) {
+      duplicates += 1;
+      await prisma.supplierPriceImportRow.update({
+        where: { id: row.id },
+        data: { importedProductId: product.id, importedPriceId: existingPrice.id },
+      });
+      continue;
+    }
+
+    const price = await prisma.supplierPrice.create({
+      data: {
+        companyId,
+        supplierId: batch.supplierId,
+        supplierProductId: product.id,
+        priceListId: priceList.id,
+        price: row.priceDecimal,
+        priceRawValue: row.priceRawValue || String(row.priceDecimal),
+        ntoRawValue: row.ntoRawValue,
+        validFrom: row.validFrom ?? batch.validFrom,
+        validTo: row.validTo ?? batch.validTo,
+        importBatchId: batch.id,
+        sourceRowNumber: row.rowNumber,
+      },
+    });
+    await prisma.supplierPriceImportRow.update({
+      where: { id: row.id },
+      data: { importedProductId: product.id, importedPriceId: price.id },
+    });
+    newPrices += 1;
+  }
+
+  await prisma.supplierPriceImportBatch.update({
+    where: { id: batch.id },
+    data: {
+      status: "confirmed",
+      priceListId: priceList.id,
+      newProducts,
+      updatedProducts,
+      newPrices,
+      duplicateRows: duplicates,
+      confirmedAt: new Date(),
+    },
+  });
+
+  await prisma.productImportLog.create({
+    data: {
+      source: `Dahl prislista: ${batch.sourceFileName}`,
+      status: "COMPLETED",
+      createdCount: newProducts,
+      updatedCount: updatedProducts,
+      skippedCount: duplicates,
+      errorCount: batch.invalidRows,
+      completedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/admin/pricing");
+  redirect(`/admin/pricing?dahlBatchId=${batch.id}`);
 }
 
 export async function createMarkupRuleAction(formData: FormData) {

@@ -460,6 +460,9 @@ model Supplier {
   name      String
   active    Boolean                @default(true)
   prices    ProductSupplierPrice[]
+  catalogProducts SupplierProduct[]
+  priceLists SupplierPriceList[]
+  priceImportBatches SupplierPriceImportBatch[]
   discounts SupplierDiscountRule[]
   discountImportBatches SupplierDiscountImportBatch[]
   productDiscountGroups ProductDiscountGroupMap[]
@@ -468,6 +471,140 @@ model Supplier {
 
   @@unique([companyId, name])
   @@index([companyId, active])
+}
+
+model SupplierProduct {
+  id                    String          @id @default(cuid())
+  companyId             String
+  supplierId            String
+  supplier              Supplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierArticleNumber String
+  rskNumber             String?
+  supplierName          String
+  calculationGroup      String?
+  unit                  String?
+  statusRaw             String?
+  active                Boolean         @default(true)
+  prices                SupplierPrice[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@unique([companyId, supplierId, supplierArticleNumber])
+  @@index([companyId, supplierId, supplierName])
+  @@index([companyId, supplierId, calculationGroup])
+  @@index([companyId, rskNumber])
+}
+
+model SupplierPriceList {
+  id             String          @id @default(cuid())
+  companyId      String
+  supplierId     String
+  supplier       Supplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  code           String
+  name           String
+  validFrom      DateTime?
+  validTo        DateTime?
+  active         Boolean         @default(true)
+  importedAt     DateTime?
+  sourceFileName String?
+  fileHash       String?
+  prices         SupplierPrice[]
+  importBatches  SupplierPriceImportBatch[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([companyId, supplierId, code, validFrom, validTo])
+  @@index([companyId, supplierId, active])
+  @@index([companyId, supplierId, code])
+}
+
+model SupplierPrice {
+  id                String            @id @default(cuid())
+  companyId         String
+  supplierId        String
+  supplierProductId String
+  supplierProduct   SupplierProduct   @relation(fields: [supplierProductId], references: [id], onDelete: Cascade)
+  priceListId       String
+  priceList         SupplierPriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  price             Decimal           @db.Decimal(12, 2)
+  priceRawValue     String
+  ntoRawValue       String?
+  validFrom         DateTime?
+  validTo           DateTime?
+  importedAt        DateTime          @default(now())
+  importBatchId     String?
+  sourceRowNumber   Int?
+  createdAt         DateTime          @default(now())
+
+  @@unique([companyId, supplierProductId, priceListId, importBatchId])
+  @@index([companyId, supplierId, priceListId])
+  @@index([companyId, supplierProductId, validFrom, validTo])
+}
+
+model SupplierPriceImportBatch {
+  id               String            @id @default(cuid())
+  companyId        String
+  supplierId       String
+  supplier         Supplier          @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  priceListId      String?
+  priceList        SupplierPriceList? @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  sourceFileName   String
+  fileHash         String
+  importerType     String            @default("dahl-price-list-v1")
+  status           String            @default("preview")
+  priceListCode    String?
+  validFrom        DateTime?
+  validTo          DateTime?
+  totalRows        Int               @default(0)
+  productRows      Int               @default(0)
+  validRows        Int               @default(0)
+  invalidRows      Int               @default(0)
+  ignoredRows      Int               @default(0)
+  duplicateRows    Int               @default(0)
+  existingProducts Int               @default(0)
+  newProducts      Int               @default(0)
+  updatedProducts  Int               @default(0)
+  newPrices        Int               @default(0)
+  priceChanges     Int               @default(0)
+  importedBy       String?
+  formatSummary    Json?
+  rows             SupplierPriceImportRow[]
+  createdAt        DateTime          @default(now())
+  confirmedAt      DateTime?
+
+  @@index([companyId, supplierId, status, createdAt])
+  @@index([companyId, supplierId, fileHash])
+}
+
+model SupplierPriceImportRow {
+  id                    String                   @id @default(cuid())
+  companyId             String
+  batchId               String
+  batch                 SupplierPriceImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  supplierId            String
+  rowNumber             Int
+  originalRawRow         Json
+  supplierArticleNumber String?
+  rskNumber             String?
+  supplierName          String?
+  calculationGroup      String?
+  unit                  String?
+  priceRawValue         String?
+  priceDecimal          Decimal?                 @db.Decimal(12, 2)
+  ntoRawValue           String?
+  priceListCode         String?
+  statusRaw             String?
+  validFrom             DateTime?
+  validTo               DateTime?
+  parseStatus           String                   @default("parsed")
+  errorMessage          String?
+  duplicateOfPriceId    String?
+  importedProductId     String?
+  importedPriceId       String?
+  createdAt             DateTime                 @default(now())
+
+  @@index([companyId, batchId, parseStatus])
+  @@index([companyId, supplierId, supplierArticleNumber])
 }
 
 model ProductSupplierPrice {

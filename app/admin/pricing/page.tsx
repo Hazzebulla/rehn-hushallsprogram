@@ -9,8 +9,10 @@ import {
   createMarkupRuleAction,
   createSupplierAction,
   createSupplierPriceAction,
+  confirmDahlPriceListImportAction,
   confirmStructuredDiscountImportAction,
   importDiscountLetterAction,
+  previewDahlPriceListAction,
   previewStructuredDiscountLetterAction,
   savePricingSettingsAction,
 } from "./actions";
@@ -27,7 +29,7 @@ function dateLabel(value: Date | null | undefined) {
   return formatDateOnly(value);
 }
 
-async function getPricingData(discountBatchId?: string) {
+async function getPricingData(discountBatchId?: string, dahlBatchId?: string) {
   try {
     const [
       total,
@@ -42,6 +44,9 @@ async function getPricingData(discountBatchId?: string) {
       reports,
       importLogs,
       previewBatch,
+      dahlSupplier,
+      dahlPriceLists,
+      dahlPreviewBatch,
     ] = await Promise.all([
       prisma.productModel.count(),
       prisma.productModel.count({ where: { supplierPrices: { some: { active: true } } } }),
@@ -122,6 +127,34 @@ async function getPricingData(discountBatchId?: string) {
             },
           })
         : Promise.resolve(null),
+      prisma.supplier.findFirst({
+        where: { companyId: COMPANY_ID, name: "Dahl" },
+        select: { id: true, name: true },
+      }),
+      prisma.supplierPriceList.findMany({
+        where: { companyId: COMPANY_ID, supplier: { name: "Dahl" } },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          validFrom: true,
+          validTo: true,
+          importedAt: true,
+          sourceFileName: true,
+          _count: { select: { prices: true } },
+        },
+        orderBy: [{ validFrom: "desc" }, { code: "asc" }],
+        take: 12,
+      }),
+      dahlBatchId
+        ? prisma.supplierPriceImportBatch.findFirst({
+            where: { id: dahlBatchId, companyId: COMPANY_ID },
+            include: {
+              supplier: { select: { name: true } },
+              rows: { orderBy: { rowNumber: "asc" }, take: 100 },
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
     return {
@@ -146,6 +179,9 @@ async function getPricingData(discountBatchId?: string) {
       reports,
       importLogs,
       previewBatch,
+      dahlSupplier,
+      dahlPriceLists,
+      dahlPreviewBatch,
     };
   } catch {
     return {
@@ -162,6 +198,9 @@ async function getPricingData(discountBatchId?: string) {
       reports: [],
       importLogs: [],
       previewBatch: null,
+      dahlSupplier: null,
+      dahlPriceLists: [],
+      dahlPreviewBatch: null,
     };
   }
 }
@@ -169,10 +208,10 @@ async function getPricingData(discountBatchId?: string) {
 export default async function PricingPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ discountBatchId?: string }>;
+  searchParams?: Promise<{ discountBatchId?: string; dahlBatchId?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const data = await getPricingData(resolvedSearchParams?.discountBatchId);
+  const data = await getPricingData(resolvedSearchParams?.discountBatchId, resolvedSearchParams?.dahlBatchId);
   const settings = data.settings ?? defaultPricingSettings;
 
   return (
@@ -298,6 +337,51 @@ export default async function PricingPage({
             <label>Källa/notering<input name="sourceNote" /></label>
             <button className="buttonLink" type="submit">Spara listpris</button>
           </form>
+        </section>
+
+        <section className="pricingGrid">
+          <form className="portalPanel pricingForm" action={previewDahlPriceListAction}>
+            <div className="panelTitle">
+              <h3>Dahl prislistor</h3>
+              <span>Produkt- och prislistor. Separat från rabattbrev.</span>
+            </div>
+            <label className="photoDrop wide">Importera Dahl-prislista
+              <input
+                accept=".xlsx,.xls,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/plain"
+                name="dahlPriceFile"
+                required
+                type="file"
+              />
+            </label>
+            <div className="pricingImportHelp wide">
+              <strong>Förväntade kolumner</strong>
+              <span>Artnr, Benämning, Kalkylgr, Enh, Pris, Nto, Pr.l och Status.</span>
+              <span>Artnr sparas som Dahl artikelnummer. Endast verifierbara 7-siffriga nummer kopieras även till RSK.</span>
+              <span>Pris sparas som Dahl-prislistedata. Ingen rabatt eller inköpspris räknas fram här.</span>
+            </div>
+            <button className="buttonLink primary" type="submit">Förhandsgranska Dahl-prislista</button>
+          </form>
+
+          <article className="portalPanel pricingForm">
+            <div className="panelTitle">
+              <h3>Dahl i databasen</h3>
+              <span>{data.dahlSupplier ? "Leverantör finns" : "Skapas automatiskt vid import"}</span>
+            </div>
+            {data.dahlPriceLists.length ? (
+              <div className="pricingList vertical">
+                {data.dahlPriceLists.map((list) => {
+                  const expired = list.validTo ? list.validTo.getTime() < Date.now() : false;
+                  return (
+                    <span key={list.id}>
+                      <strong>{list.code}</strong> {dateLabel(list.validFrom)} - {dateLabel(list.validTo)} · {list._count.prices} produkter · {expired ? "Utgången" : "Aktuell"} · {list.sourceFileName ?? "okänd fil"}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="databaseNotice">Inga Dahl-prislistor importerade ännu.</p>
+            )}
+          </article>
         </section>
 
         <section className="pricingGrid">
@@ -446,6 +530,60 @@ export default async function PricingPage({
                     <td>{row.rawDiscountValue ?? "-"}</td>
                     <td>{dateLabel(row.validityDate)}</td>
                     <td>{row.parseStatus}</td>
+                    <td>{row.errorMessage ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        ) : null}
+
+        {data.dahlPreviewBatch ? (
+          <section className="portalPanel pricingForm">
+            <div className="panelTitle">
+              <h3>Förhandsgranskning av Dahl-prislista</h3>
+              <span>{data.dahlPreviewBatch.sourceFileName} · {data.dahlPreviewBatch.supplier.name}</span>
+            </div>
+            <section className="adminKpis">
+              <article className="portalPanel"><span>Prislista</span><strong>{data.dahlPreviewBatch.priceListCode ?? "Okänd"}</strong><small>{dateLabel(data.dahlPreviewBatch.validFrom)} - {dateLabel(data.dahlPreviewBatch.validTo)}</small></article>
+              <article className="portalPanel"><span>Produktrader</span><strong>{data.dahlPreviewBatch.productRows}</strong><small>{data.dahlPreviewBatch.validRows} giltiga</small></article>
+              <article className="portalPanel"><span>Fel</span><strong>{data.dahlPreviewBatch.invalidRows}</strong><small>Behöver kontroll</small></article>
+              <article className="portalPanel"><span>Dubletter</span><strong>{data.dahlPreviewBatch.duplicateRows}</strong><small>Samma fil eller prislista</small></article>
+            </section>
+            <section className="adminKpis">
+              <article className="portalPanel"><span>Nya produkter</span><strong>{data.dahlPreviewBatch.newProducts}</strong><small>Dahl artikelnummer saknas idag</small></article>
+              <article className="portalPanel"><span>Befintliga</span><strong>{data.dahlPreviewBatch.existingProducts}</strong><small>Uppdateras med rådata</small></article>
+              <article className="portalPanel"><span>Nya priser</span><strong>{data.dahlPreviewBatch.validRows}</strong><small>Efter bekräftelse minus dubletter</small></article>
+              <article className="portalPanel"><span>Prisändringar</span><strong>{data.dahlPreviewBatch.priceChanges}</strong><small>Mot samma prislista</small></article>
+            </section>
+            {data.dahlPreviewBatch.status === "duplicate_file" ? (
+              <p className="databaseNotice">Den här filen verkar redan vara importerad och importerades därför inte igen.</p>
+            ) : null}
+            <div className="pricingImportHelp wide">
+              <strong>Viktigt</strong>
+              <span>Pris sparas som Dahl-prislistedata, inte som nettopris eller inköpspris.</span>
+              <span>Kalkylgr, Nto och Status sparas rått tills Dahl-formatet är verifierat fullt ut.</span>
+            </div>
+            <form className="pricingInlineForm" action={confirmDahlPriceListImportAction}>
+              <input name="dahlBatchId" type="hidden" value={data.dahlPreviewBatch.id} />
+              <button className="buttonLink primary" disabled={data.dahlPreviewBatch.status !== "preview" || data.dahlPreviewBatch.validRows === 0} type="submit">Bekräfta Dahl-import</button>
+            </form>
+            <table>
+              <thead>
+                <tr><th>Rad</th><th>Artnr</th><th>Benämning</th><th>Kalkylgr</th><th>Enh</th><th>Pris</th><th>Nto</th><th>Pr.l</th><th>Status</th><th>Felorsak</th></tr>
+              </thead>
+              <tbody>
+                {data.dahlPreviewBatch.rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.rowNumber}</td>
+                    <td>{row.supplierArticleNumber ?? "-"}</td>
+                    <td>{row.supplierName ?? "-"}</td>
+                    <td>{row.calculationGroup ?? "-"}</td>
+                    <td>{row.unit ?? "-"}</td>
+                    <td>{row.priceRawValue ?? "-"}</td>
+                    <td>{row.ntoRawValue ?? "-"}</td>
+                    <td>{row.priceListCode ?? "-"}</td>
+                    <td>{row.parseStatus === "duplicate" ? "duplicate" : row.statusRaw ?? row.parseStatus}</td>
                     <td>{row.errorMessage ?? "-"}</td>
                   </tr>
                 ))}
