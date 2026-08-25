@@ -1,4 +1,5 @@
 import { prisma } from "../../../lib/prisma";
+import { ensurePublicPreInspectionLink } from "../../../lib/customer-preinspection";
 import AdminSidebar from "../admin-sidebar";
 
 export const dynamic = "force-dynamic";
@@ -20,18 +21,28 @@ async function getStartData() {
       take: 20,
     });
 
-    return {
-      databaseOnline: true,
-      properties: properties.map((property) => ({
+    const rows = await Promise.all(properties.map(async (property) => {
+      const link = await ensurePublicPreInspectionLink(property.id);
+      return {
         id: property.id,
         customer: property.customer.name,
         address: property.address,
         propertyNo: property.propertyNo ?? "Fastighet",
         lastReport: property.houseReports[0]?.reportNo ?? "Ingen rapport",
-      })),
+        customerFormUrl: `/husrapport/start/${link.token}`,
+        customerFormStatus: link.status,
+      };
+    }));
+
+    const blankLink = await ensurePublicPreInspectionLink();
+
+    return {
+      databaseOnline: true,
+      blankCustomerFormUrl: `/husrapport/start/${blankLink.token}`,
+      properties: rows,
     };
   } catch {
-    return { databaseOnline: false, properties: [] };
+    return { databaseOnline: false, blankCustomerFormUrl: "", properties: [] };
   }
 }
 
@@ -61,6 +72,7 @@ export default async function NewReportPage() {
           </div>
           <div className="portalActions">
             <a className="buttonLink primary" href="/admin/customers">Skapa kund / fastighet</a>
+            {data.blankCustomerFormUrl ? <a className="buttonLink" href={data.blankCustomerFormUrl}>Ny kundlänk</a> : null}
             <a className="buttonLink" href="/admin/reports">Visa rapporter</a>
           </div>
         </header>
@@ -71,12 +83,13 @@ export default async function NewReportPage() {
               <h3>Välj fastighet</h3>
               <span>Startar besiktningsformuläret på rätt kund</span>
             </div>
-            <div className="auditList">
+            <div className="auditList preInspectionList">
               {data.properties.length ? data.properties.map((property) => (
                 <div key={property.id}>
                   <time>{property.propertyNo}</time>
                   <strong>{property.customer}</strong>
                   <span>{property.address}</span>
+                  <a className="buttonLink" href={property.customerFormUrl}>Kundlänk</a>
                   <a className="buttonLink" href={`/admin/husstatus-form?propertyId=${property.id}`}>Starta</a>
                 </div>
               )) : (

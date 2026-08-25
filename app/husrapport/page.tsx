@@ -1,5 +1,6 @@
 ﻿import { prisma } from "../../lib/prisma";
 import { getLiveOutdoorTemperature } from "../../lib/weather";
+import { houseReportStatusLabel } from "../../lib/house-report-status";
 import { rvmFieldCount, rvmSections } from "../admin/husstatus-form/spec";
 import { updateHouseReportStatusAction } from "./actions";
 import PrintReportButton from "./print-button";
@@ -119,6 +120,8 @@ type ReportData = {
   quarterlyControl?: string;
   deliveryMethod?: string;
   liveWeather?: WeatherVm;
+  customerInformation: string[][];
+  customerImages: number;
   hasCompletedForm: boolean;
   dataSufficient: boolean;
   leadText: string;
@@ -226,6 +229,37 @@ function textAnswer(answers: Map<string, string>, key: string) {
 
 function hasAnyAnswer(answers: Map<string, string>, keys: string[]) {
   return keys.some((key) => textAnswer(answers, key).length > 0);
+}
+
+function stringList(value: unknown) {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean).join(", ") : String(value ?? "");
+}
+
+function customerDeclarationRows(value: unknown) {
+  const declaration = asRecord(value);
+  const contact = asRecord(declaration.contact);
+  const property = asRecord(declaration.property);
+  const wetRooms = asRecord(declaration.wetRooms);
+  const rows = [
+    ["Namn", stringList(contact.name)],
+    ["E-post", stringList(contact.email)],
+    ["Telefon", stringList(contact.phone)],
+    ["Fastighet", stringList(property.address)],
+    ["Fastighetstyp", stringList(property.propertyType)],
+    ["Byggår", stringList(property.buildYear)],
+    ["Boyta", property.livingArea ? `${property.livingArea} m²` : ""],
+    ["Våningar", stringList(property.floors)],
+    ["Källare", stringList(property.basement)],
+    ["Värmekälla", stringList(declaration.heating)],
+    ["Varmvatten", stringList(declaration.hotWaterType)],
+    ["Värmedistribution", stringList(declaration.heatDistribution)],
+    ["Badrum/WC", stringList(wetRooms.bathrooms)],
+    ["Tvättstuga", stringList(wetRooms.hasLaundryRoom)],
+    ["Kända problem", stringList(wetRooms.problems)],
+    ["Önskad kontroll", stringList(declaration.focusAreas)],
+  ].filter(([, detail]) => detail.trim().length > 0);
+
+  return { rows, imageCount: 0 };
 }
 
 type SectionStatusMap = Record<string, "active" | "not_applicable">;
@@ -546,6 +580,8 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
         reportStatus: "NOT_STARTED",
         formStatus: "NOT_STARTED",
         formProgress: 0,
+        customerInformation: [],
+        customerImages: 0,
         hasCompletedForm: false,
         dataSufficient: false,
         leadText: "Ingen färdig RVM Husstatusrapport finns ännu. Välj fastighet och slutför formuläret för att skapa rapport.",
@@ -611,6 +647,7 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
     const latestRawAnswersAll = new Map<string, unknown>(
       latestSubmission?.answers.map((answer) => [answer.fieldKey, rawAnswerValue(answer.value)]) ?? [],
     );
+    const customerDeclaration = customerDeclarationRows(latestRawAnswersAll.get("customer_self_declaration"));
     const sectionStatuses = sectionStatusMap(latestRawAnswersAll);
     const currentSignatureHash = reportSignatureHashFromRaw(latestRawAnswersAll, sectionStatuses);
     const signatures = reportSignatures(latestRawAnswersAll, currentSignatureHash);
@@ -853,6 +890,8 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
       quarterlyControl: quarterlyControl || undefined,
       deliveryMethod: deliveryMethod || undefined,
       liveWeather,
+      customerInformation: customerDeclaration.rows,
+      customerImages: customerDeclaration.imageCount,
       hasCompletedForm,
       dataSufficient,
       leadText: String(latestAnswers.get("site_summary") || explanation.summary || generateSummary({
@@ -913,6 +952,8 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
       reportStatus: "OFFLINE",
       formStatus: "UNKNOWN",
       formProgress: 0,
+      customerInformation: [],
+      customerImages: 0,
       hasCompletedForm: false,
       dataSufficient: false,
       leadText: "Rapportdata kunde inte laddas från databasen.",
@@ -970,6 +1011,9 @@ function SectionHeader({ no, title }: { no: string; title: string }) {
 }
 
 function reportStatusLabel(status: string) {
+  if (/^(customer_form_started|customer_form_completed|visit_scheduled|inspection_in_progress|review_required|published|archived)$/.test(status)) {
+    return houseReportStatusLabel(status);
+  }
   if (status === "DRAFT") return "Utkast";
   if (status === "READY_FOR_REVIEW") return "Klar för granskning";
   if (status === "APPROVED") return "Godkänd av RVM";
@@ -1015,6 +1059,8 @@ export default async function HusrapportPage({
     quarterlyControl,
     deliveryMethod,
     liveWeather,
+    customerInformation,
+    customerImages,
     hasCompletedForm,
     dataSufficient,
     leadText,
@@ -1103,6 +1149,24 @@ export default async function HusrapportPage({
         <div><span>Kvartalsöversyn</span><strong>{quarterlyControl ?? "Ej valt"}</strong></div>
         <div><span>Leverans</span><strong>{deliveryMethod ?? "Ej valt"}</strong></div>
       </section>
+
+      {customerInformation.length > 0 && (
+        <section className="customerDeclarationPanel noPrint">
+          <div className="panelTitle">
+            <h3>Information från kunden</h3>
+            <span>Kundformulär: Klart · Rapportens uppskattade färdigställande: 25 %</span>
+          </div>
+          <dl>
+            {customerInformation.map(([term, value]) => (
+              <div key={term}>
+                <dt>{term}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p>Alla uppgifter är markerade som kunduppgift och ska verifieras av montör på plats. Kundbilder ligger i formulärunderlaget{customerImages ? ` (${customerImages} st)` : ""}.</p>
+        </section>
+      )}
 
       {!hasCompletedForm && dataSufficient && (
         <section className="reportGate noPrint">

@@ -1621,6 +1621,54 @@ td {
   grid-template-columns: 78px minmax(150px, 1fr) minmax(180px, 1.2fr) 150px 92px 118px;
 }
 
+.preInspectionList div {
+  grid-template-columns: 90px minmax(150px, 1fr) minmax(180px, 1.2fr) 110px 92px;
+}
+
+.customerDeclarationPanel {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid rgba(72, 214, 230, 0.42);
+  border-radius: 8px;
+  background: rgba(6, 20, 25, 0.86);
+}
+
+.customerDeclarationPanel dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.customerDeclarationPanel dl div {
+  padding: 12px;
+  border: 1px solid rgba(70, 158, 176, 0.32);
+  background: rgba(4, 12, 12, 0.46);
+}
+
+.customerDeclarationPanel dt,
+.customerDeclarationPanel dd {
+  margin: 0;
+}
+
+.customerDeclarationPanel dt {
+  color: var(--cyan);
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.customerDeclarationPanel dd {
+  margin-top: 7px;
+  color: var(--text);
+  font-weight: 850;
+}
+
+.customerDeclarationPanel p {
+  margin: 14px 0 0;
+  color: var(--muted);
+}
+
 .opsGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -6077,6 +6125,7 @@ td {
   .energyCheckGrid,
   .publishGrid,
   .opsGrid,
+  .customerDeclarationPanel dl,
   .auditList div,
   .systemChecks div,
   .submissionItem summary,

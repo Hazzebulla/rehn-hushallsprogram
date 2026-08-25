@@ -750,6 +750,26 @@ model HouseReport {
   @@index([companyId, propertyId, status])
 }
 
+model CustomerPreInspectionLink {
+  id          String    @id @default(cuid())
+  companyId   String
+  token       String    @unique
+  customerId  String?
+  propertyId  String?
+  submissionId String?
+  reportId    String?
+  status      String    @default("customer_form_started")
+  payload     Json?
+  sourceSummary Json?
+  expiresAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([companyId, propertyId, status])
+  @@index([companyId, customerId])
+}
+
 model OwnershipTransfer {
   id             String   @id @default(cuid())
   companyId      String
