@@ -577,15 +577,27 @@ export default async function PricingPage({
             {data.dahlPreviewBatch.status === "duplicate_file" ? (
               <p className="databaseNotice">Den här filen verkar redan vara importerad och importerades därför inte igen.</p>
             ) : null}
+            {data.dahlPreviewBatch.status === "confirmed" ? (
+              <p className="databaseNotice">Den här prislistan är redan bekräftad och importerad. Du behöver inte bekräfta den igen.</p>
+            ) : null}
+            {data.dahlPreviewBatch.status === "preview" && data.dahlPreviewBatch.validRows === 0 ? (
+              <p className="databaseNotice">Det finns inga giltiga produktrader att importera i den här previewn. Ladda upp filen igen om detta är en äldre preview från innan parserfixen.</p>
+            ) : null}
             <div className="pricingImportHelp wide">
               <strong>Viktigt</strong>
               <span>Pris sparas som Dahl-prislistedata, inte som nettopris eller inköpspris.</span>
               <span>Kalkylgr, Nto och Status sparas rått tills Dahl-formatet är verifierat fullt ut.</span>
             </div>
-            <form className="pricingInlineForm" action={confirmDahlPriceListImportAction}>
-              <input name="dahlBatchId" type="hidden" value={data.dahlPreviewBatch.id} />
-              <button className="buttonLink primary" disabled={data.dahlPreviewBatch.status !== "preview" || data.dahlPreviewBatch.validRows === 0} type="submit">Bekräfta Dahl-import</button>
-            </form>
+            {data.dahlPreviewBatch.status === "preview" && data.dahlPreviewBatch.validRows > 0 ? (
+              <form className="pricingInlineForm" action={confirmDahlPriceListImportAction}>
+                <input name="dahlBatchId" type="hidden" value={data.dahlPreviewBatch.id} />
+                <button className="buttonLink primary" type="submit">Bekräfta Dahl-import</button>
+              </form>
+            ) : (
+              <div className="pricingInlineForm">
+                <a className="buttonLink" href="/admin/pricing">Tillbaka till prisdatabasen</a>
+              </div>
+            )}
             <table>
               <thead>
                 <tr><th>Rad</th><th>Artnr</th><th>Benämning</th><th>Kalkylgr</th><th>Enh</th><th>Pris</th><th>Nto</th><th>Pr.l</th><th>Status</th><th>Felorsak</th></tr>
