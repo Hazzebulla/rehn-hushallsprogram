@@ -65,6 +65,17 @@ function normalizePriceListCode(value: string | null | undefined) {
   return cleaned;
 }
 
+function comparablePriceListCode(value: string | null | undefined) {
+  return normalizePriceListCode(value)?.replace(/\s+/g, " ").trim().toUpperCase() ?? null;
+}
+
+function extractPriceListCode(line: string) {
+  const cleaned = cleanCell(line);
+  const match = cleaned.match(/prislista\s*:?\s+(.+?)(?=\s+(?:från|fran|till)\b|\s+20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b|$)/iu);
+  if (!match) return null;
+  return normalizePriceListCode(match[1]);
+}
+
 function parseDateOnly(value: string) {
   const cleaned = cleanCell(value);
   const iso = cleaned.match(/\b(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})\b/u);
@@ -84,6 +95,12 @@ function parseDateOnly(value: string) {
   }
 
   return null;
+}
+
+function parseDateAfterKeyword(line: string, keywordPattern: RegExp) {
+  const keyword = line.match(keywordPattern);
+  if (!keyword || keyword.index === undefined) return null;
+  return parseDateOnly(line.slice(keyword.index + keyword[0].length));
 }
 
 function validateDateOnly(year: number, month: number, day: number) {
@@ -149,14 +166,18 @@ function extractMetadata(rows: string[][]) {
   for (const row of rows.slice(0, 40)) {
     const line = row.map(cleanCell).filter(Boolean).join(" ");
     const normalizedLine = line.toLowerCase();
-    const priceListMatch = line.match(/prislista\s+(.+)$/iu);
-    if (priceListMatch) priceListCode = normalizePriceListCode(priceListMatch[1]);
+    const parsedPriceListCode = extractPriceListCode(line);
+    if (parsedPriceListCode) priceListCode = parsedPriceListCode;
     if (!priceListCode) {
       const known = Object.keys(DAHL_KNOWN_PRICE_LISTS).find((code) => normalizedLine.includes(code.toLowerCase()));
       if (known) priceListCode = known;
     }
-    if (normalizedLine.includes("från") || normalizedLine.includes("fran")) validFrom = parseDateOnly(line) ?? validFrom;
-    if (normalizedLine.includes("till")) validTo = parseDateOnly(line) ?? validTo;
+    if (normalizedLine.includes("från") || normalizedLine.includes("fran")) {
+      validFrom = parseDateAfterKeyword(line, /\bfrån\b|\bfran\b/iu) ?? validFrom;
+    }
+    if (normalizedLine.includes("till")) {
+      validTo = parseDateAfterKeyword(line, /\btill\b/iu) ?? validTo;
+    }
   }
 
   return { priceListCode, validFrom, validTo };
@@ -213,7 +234,11 @@ export function analyzeDahlPriceListRows(inputRows: unknown[][]): DahlPriceListA
     if (!unit) errors.push("Enh saknas");
     if (!priceRawValue || !priceDecimal) errors.push("Pris saknas eller har fel format");
     if (!rowPriceListCode) errors.push("Pr.l saknas");
-    if (metadata.priceListCode && rowPriceListCode && metadata.priceListCode !== rowPriceListCode) {
+    if (
+      metadata.priceListCode
+      && rowPriceListCode
+      && comparablePriceListCode(metadata.priceListCode) !== comparablePriceListCode(rowPriceListCode)
+    ) {
       errors.push(`Pr.l ${rowPriceListCode} matchar inte filens prislista ${metadata.priceListCode}`);
     }
 

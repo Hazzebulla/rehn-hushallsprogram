@@ -25,6 +25,27 @@ assert.equal(vp.rows[1].supplierArticleNumber, "K4551017");
 assert.equal(vp.rows[1].rskNumber, null);
 assert.equal(vp.rows[1].priceDecimal, "35.23");
 
+const combinedHeader = analyzeDahlPriceListRows([
+  ["Prislista 201VP1", "Från 2024-08-01", "Till 2025-01-31"],
+  header,
+  ["6203778", "BOSCH ELPANNA AWM 9", "AA2210", "STK", "32500,00", "1", "201VP1", "20"],
+]);
+assert.equal(combinedHeader.priceListCode, "201VP1");
+assert.equal(combinedHeader.validFrom, "2024-08-01");
+assert.equal(combinedHeader.validTo, "2025-01-31");
+assert.equal(combinedHeader.validRows, 1);
+assert.equal(combinedHeader.invalidRows, 0);
+
+const inlineHeader = analyzeDahlPriceListRows([
+  ["Prislista 201VP1 Från 2024-08-01 Till 2025-01-31"],
+  header,
+  ["6203778", "BOSCH ELPANNA AWM 9", "AA2210", "STK", "32500,00", "1", "201VP1", "20"],
+]);
+assert.equal(inlineHeader.priceListCode, "201VP1");
+assert.equal(inlineHeader.validFrom, "2024-08-01");
+assert.equal(inlineHeader.validTo, "2025-01-31");
+assert.equal(inlineHeader.invalidRows, 0);
+
 const wc = analyzeDahlPriceListRows([
   ["Prislista VVS WC4"],
   header,
