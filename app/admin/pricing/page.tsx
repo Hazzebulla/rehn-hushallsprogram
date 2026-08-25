@@ -270,7 +270,7 @@ export default async function PricingPage() {
           <form className="portalPanel pricingForm" action={importDiscountLetterAction}>
             <div className="panelTitle">
               <h3>Importera rabattbrev</h3>
-              <span>CSV/TXT/PDF. CSV är säkrast, PDF fungerar om texten går att läsa.</span>
+              <span>Excel, CSV, TXT eller PDF. Excel/CSV är säkrast.</span>
             </div>
             <label>Standardleverantör
               <select name="supplierId">
@@ -279,7 +279,7 @@ export default async function PricingPage() {
               </select>
             </label>
             <label className="photoDrop wide">Ladda upp rabattbrev
-              <input accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" name="file" type="file" />
+              <input accept=".xlsx,.xls,.csv,.txt,.pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/plain,application/pdf" name="file" type="file" />
             </label>
             <label className="wide">Eller klistra in text / CSV
               <textarea
@@ -291,6 +291,7 @@ export default async function PricingPage() {
             <div className="pricingImportHelp wide">
               <strong>Rekommenderat format</strong>
               <span>En rad per rabattregel. Kolumner: leverantör, tillverkare, kategori, produktgrupp, rsk, rabatt.</span>
+              <span>Excel: använd gärna första raden som rubriker. Alla blad läses in.</span>
               <span>Exempel fri text: Dahl FM Mattsson blandare 42 % eller RSK 8344302 rabatt 42 %.</span>
             </div>
             <button className="buttonLink primary" type="submit">Läs in rabattbrev</button>

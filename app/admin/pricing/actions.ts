@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { PDFParse } from "pdf-parse";
+import * as XLSX from "xlsx";
 import { prisma } from "../../../lib/prisma";
 import { calculateEstimate } from "../../../lib/pricing-engine";
 import { getCurrentSessionUser } from "../../../lib/session";
@@ -149,8 +150,25 @@ function parseDiscountRows(rawText: string, suppliers: Array<{ id: string; name:
 
 async function textFromDiscountImportFile(file: File) {
   const lowerName = file.name.toLowerCase();
+  const bytes = Buffer.from(await file.arrayBuffer());
+  if (
+    lowerName.endsWith(".xlsx")
+    || lowerName.endsWith(".xls")
+    || file.type.includes("spreadsheet")
+    || file.type.includes("excel")
+  ) {
+    const workbook = XLSX.read(bytes, { type: "buffer", cellDates: false });
+    return workbook.SheetNames
+      .map((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) return "";
+        return XLSX.utils.sheet_to_csv(sheet, { FS: ";", blankrows: false });
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
   if (file.type.includes("pdf") || lowerName.endsWith(".pdf")) {
-    const parser = new PDFParse({ data: Buffer.from(await file.arrayBuffer()) });
+    const parser = new PDFParse({ data: bytes });
     const parsed = await parser.getText();
     await parser.destroy();
     return parsed.text;

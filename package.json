@@ -29,6 +29,7 @@
     "react": "latest",
     "react-dom": "latest",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "xlsx": "^0.18.5"
   }
 }
