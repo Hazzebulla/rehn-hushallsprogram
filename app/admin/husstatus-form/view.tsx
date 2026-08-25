@@ -33,7 +33,10 @@ type ProductOption = {
   id: string;
   category: string;
   manufacturer: string;
+  rskNumber: string;
+  productName: string;
   modelName: string;
+  unit: string;
   systemType: string;
   technicalData: string;
   expectedLifetimeMinYears: number | null;
@@ -44,6 +47,13 @@ type ProductOption = {
   manualUrl: string;
   wiringDiagramUrl: string;
   dataQuality: string;
+  supplierProducts?: {
+    supplierArticleNumber: string;
+    rskNumber: string | null;
+    supplierName: string;
+    calculationGroup: string | null;
+    unit: string | null;
+  }[];
 };
 
 type PhotoAttachment = {
@@ -801,7 +811,10 @@ function ComponentRegisterTable({
       .filter((product) => (!row.category || product.category === row.category) && (!row.brand || product.manufacturer === row.brand))
       .filter((product) => {
         if (!query) return true;
-        const text = `${product.manufacturer} ${product.modelName}`.toLowerCase();
+        const supplierText = product.supplierProducts
+          ?.map((supplierProduct) => `${supplierProduct.supplierArticleNumber} ${supplierProduct.rskNumber ?? ""} ${supplierProduct.supplierName} ${supplierProduct.calculationGroup ?? ""}`)
+          .join(" ") ?? "";
+        const text = `${product.manufacturer} ${product.modelName} ${product.productName} ${product.rskNumber} ${supplierText}`.toLowerCase();
         return text.includes(query) || query.split(/\s+/).some((part) => text.includes(part));
       })
       .slice(0, 80);
@@ -830,7 +843,7 @@ function ComponentRegisterTable({
         typeName: row.typeName || product.category,
         category: product.category,
         brand: row.brand || product.manufacturer,
-        model: row.model || product.modelName,
+        model: row.model || product.productName || product.modelName,
         systemName: row.systemName || product.technicalData || product.systemType,
         costKr: row.costKr || productPrice(product),
       };
@@ -875,13 +888,19 @@ function ComponentRegisterTable({
             placeholder="Sök modell"
           />
           <datalist id={`models-${index}`}>
-            {productsFor(row).map((product) => <option key={product.id} value={product.modelName}>{product.manufacturer}</option>)}
+            {productsFor(row).map((product) => (
+              <option key={product.id} value={product.productName || product.modelName}>
+                {product.rskNumber ? `RSK ${product.rskNumber} - ` : ""}{product.manufacturer}
+              </option>
+            ))}
             <option value="Annan/okänd modell" />
           </datalist>
           <select value={row.productModelId ?? ""} onChange={(event) => selectProduct(index, event.target.value)}>
             <option value="">Annan/okänd modell</option>
             {productsFor(row).map((product) => (
-              <option key={product.id} value={product.id}>{product.manufacturer} {product.modelName}</option>
+              <option key={product.id} value={product.id}>
+                {product.rskNumber ? `RSK ${product.rskNumber} - ` : ""}{product.productName || product.modelName}
+              </option>
             ))}
           </select>
           <input value={row.serialNo ?? ""} onChange={(event) => updateRow(index, "serialNo", event.target.value)} />

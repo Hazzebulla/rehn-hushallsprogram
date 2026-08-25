@@ -15,6 +15,7 @@ import {
   dateOnlyToPrismaDate,
   decodeSupplierDiscountLetterText,
 } from "../../../lib/supplier-discount-letter-parser";
+import { ensureCentralProductsForSupplierProducts } from "../../../lib/supplier-product-catalog";
 import { getCurrentSessionUser } from "../../../lib/session";
 
 const COMPANY_ID = "org_rehn_vvs";
@@ -792,9 +793,26 @@ export async function confirmDahlPriceListImportAction(formData: FormData) {
   let updatedProducts = 0;
   let newPrices = 0;
   let duplicates = 0;
+  const importableRows = batch.rows.flatMap((row) => {
+    if (!row.supplierArticleNumber || !row.supplierName || !row.priceDecimal) return [];
+    return [{
+      ...row,
+      supplierArticleNumber: row.supplierArticleNumber,
+      supplierName: row.supplierName,
+      priceDecimal: row.priceDecimal,
+    }];
+  });
+  const centralProducts = await ensureCentralProductsForSupplierProducts(importableRows.map((row) => ({
+    companyId,
+    supplierId: batch.supplierId,
+    supplierArticleNumber: row.supplierArticleNumber!,
+    supplierName: row.supplierName!,
+    rskNumber: row.rskNumber,
+    calculationGroup: row.calculationGroup,
+    unit: row.unit,
+  })));
 
-  for (const row of batch.rows) {
-    if (!row.supplierArticleNumber || !row.supplierName || !row.priceDecimal) continue;
+  for (const row of importableRows) {
     const existingProduct = await prisma.supplierProduct.findUnique({
       where: {
         companyId_supplierId_supplierArticleNumber: {
@@ -804,8 +822,9 @@ export async function confirmDahlPriceListImportAction(formData: FormData) {
         },
       },
     });
+    const productModelId = centralProducts.productModelIds.get(`${batch.supplierId}:${row.supplierArticleNumber}`) ?? null;
 
-    const product = await prisma.supplierProduct.upsert({
+    const supplierProduct = await prisma.supplierProduct.upsert({
       where: {
         companyId_supplierId_supplierArticleNumber: {
           companyId,
@@ -814,6 +833,7 @@ export async function confirmDahlPriceListImportAction(formData: FormData) {
         },
       },
       update: {
+        productModelId,
         rskNumber: row.rskNumber,
         supplierName: row.supplierName,
         calculationGroup: row.calculationGroup,
@@ -824,6 +844,7 @@ export async function confirmDahlPriceListImportAction(formData: FormData) {
       create: {
         companyId,
         supplierId: batch.supplierId,
+        productModelId,
         supplierArticleNumber: row.supplierArticleNumber,
         rskNumber: row.rskNumber,
         supplierName: row.supplierName,
@@ -837,14 +858,14 @@ export async function confirmDahlPriceListImportAction(formData: FormData) {
     else newProducts += 1;
 
     const existingPrice = await prisma.supplierPrice.findFirst({
-      where: { companyId, supplierProductId: product.id, priceListId: priceList.id },
+      where: { companyId, supplierProductId: supplierProduct.id, priceListId: priceList.id },
       select: { id: true },
     });
     if (existingPrice) {
       duplicates += 1;
       await prisma.supplierPriceImportRow.update({
         where: { id: row.id },
-        data: { importedProductId: product.id, importedPriceId: existingPrice.id },
+        data: { importedProductId: supplierProduct.id, importedPriceId: existingPrice.id },
       });
       continue;
     }
@@ -853,7 +874,7 @@ export async function confirmDahlPriceListImportAction(formData: FormData) {
       data: {
         companyId,
         supplierId: batch.supplierId,
-        supplierProductId: product.id,
+        supplierProductId: supplierProduct.id,
         priceListId: priceList.id,
         price: row.priceDecimal,
         priceRawValue: row.priceRawValue || String(row.priceDecimal),
@@ -866,7 +887,7 @@ export async function confirmDahlPriceListImportAction(formData: FormData) {
     });
     await prisma.supplierPriceImportRow.update({
       where: { id: row.id },
-      data: { importedProductId: product.id, importedPriceId: price.id },
+      data: { importedProductId: supplierProduct.id, importedPriceId: price.id },
     });
     newPrices += 1;
   }

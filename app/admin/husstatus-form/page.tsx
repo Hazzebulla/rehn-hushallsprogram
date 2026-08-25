@@ -35,7 +35,20 @@ async function getFormData(selectedPropertyId?: string) {
       }),
       prisma.productModel.findMany({
         where: { active: true },
-        include: { manufacturer: true },
+        include: {
+          manufacturer: true,
+          supplierProducts: {
+            where: { active: true },
+            select: {
+              supplierArticleNumber: true,
+              rskNumber: true,
+              supplierName: true,
+              calculationGroup: true,
+              unit: true,
+            },
+            take: 3,
+          },
+        },
         orderBy: [{ category: "asc" }, { modelName: "asc" }],
         take: 2500,
       }),
@@ -88,7 +101,10 @@ async function getFormData(selectedPropertyId?: string) {
         id: product.id,
         category: product.category,
         manufacturer: product.manufacturer.name,
+        rskNumber: product.rskNumber ?? "",
+        productName: product.productName ?? "",
         modelName: product.modelName,
+        unit: product.unit,
         systemType: product.systemType ?? "",
         technicalData: technicalSummary(product),
         expectedLifetimeMinYears: product.expectedLifetimeMinYears,
@@ -99,6 +115,7 @@ async function getFormData(selectedPropertyId?: string) {
         manualUrl: product.manualUrl ?? "",
         wiringDiagramUrl: product.wiringDiagramUrl ?? "",
         dataQuality: product.dataQuality,
+        supplierProducts: product.supplierProducts,
       })),
     };
   } catch {

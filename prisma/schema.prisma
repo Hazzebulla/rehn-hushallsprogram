@@ -444,6 +444,7 @@ model ProductModel {
   favorites                ProductFavorite[]
   usage                    ProductUsage[]
   supplierPrices           ProductSupplierPrice[]
+  supplierProducts         SupplierProduct[]
   estimateMaterialRows     EstimateMaterialRow[]
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
@@ -478,6 +479,8 @@ model SupplierProduct {
   companyId             String
   supplierId            String
   supplier              Supplier        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  productModelId        String?
+  productModel          ProductModel?    @relation(fields: [productModelId], references: [id])
   supplierArticleNumber String
   rskNumber             String?
   supplierName          String
@@ -493,6 +496,7 @@ model SupplierProduct {
   @@index([companyId, supplierId, supplierName])
   @@index([companyId, supplierId, calculationGroup])
   @@index([companyId, rskNumber])
+  @@index([companyId, productModelId])
 }
 
 model SupplierPriceList {
