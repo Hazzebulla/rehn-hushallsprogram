@@ -36,7 +36,9 @@ const mainLinks = [
   ["admin", "/admin", "Översikt"],
   ["customers", "/admin/customers", "Kunder & Fastigheter"],
   ["newReport", "/admin/new-report", "Ny Husrapport"],
+  ["husstatusForm", "/admin/husstatus-form", "Fyll i formulär"],
   ["reports", "/admin/reports", "Husrapporter"],
+  ["images", "/admin/images", "Bilder"],
   ["pricing", "/admin/pricing", "Prisdatabas"],
   ["settings", "/admin/settings", "Inställningar"],
 ] as const;

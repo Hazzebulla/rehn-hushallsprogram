@@ -72,11 +72,11 @@ export default async function AdminImagesPage() {
             <p className="sectionKicker">Bildbibliotek</p>
             <h1>Alla bilder samlade per kund och fastighet.</h1>
             <p>
-              Bilder från formulärfrågor och komponentrader hamnar här automatiskt. Det gör att varje kund kan få ett
-              eget bibliotek kopplat till sin husrapport och historik.
+              Bilder från formulärfrågor, komponentrader och montörens platsbesiktning hamnar här automatiskt. Varje
+              kund får ett eget bibliotek kopplat till sin husrapport och historik.
             </p>
             <div className={`persistenceNote ${databaseOnline ? "online" : "offline"}`}>
-              {databaseOnline ? "Bilder läses från sparade RVM-formulär." : "Databasen är offline. Inga bilder kan läsas."}
+              {databaseOnline ? "Bilder läses från sparade RVM-formulär och platsbesiktningar." : "Databasen är offline. Inga bilder kan läsas."}
             </div>
           </div>
           <div className="portalActions">
@@ -90,7 +90,7 @@ export default async function AdminImagesPage() {
           <article className="portalPanel">
             <span>Bilder</span>
             <strong>{images.length}</strong>
-            <small>Från formulär och komponentregister</small>
+            <small>Från formulär, komponentregister och besiktning</small>
           </article>
           <article className="portalPanel">
             <span>Kunder</span>

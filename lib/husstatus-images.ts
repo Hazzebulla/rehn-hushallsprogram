@@ -44,6 +44,30 @@ type PhotoLike = {
   size?: unknown;
   dataUrl?: unknown;
   createdAt?: unknown;
+  areaId?: unknown;
+  category?: unknown;
+  linkedId?: unknown;
+};
+
+type TechnicianPhotoOwner = {
+  areaId?: unknown;
+  type?: unknown;
+  object?: unknown;
+  manufacturer?: unknown;
+  model?: unknown;
+  photos?: unknown;
+};
+
+const technicianAreaTitles: Record<string, string> = {
+  heat: "Värmesystem",
+  tapwater: "Tappvatten",
+  hotwater: "Varmvatten",
+  drain: "Avlopp",
+  bathroom: "Badrum",
+  kitchen: "Kök",
+  laundry: "Tvättstuga",
+  technical: "Teknikrum",
+  other: "Övrigt",
 };
 
 const imageVisibility = new Set([
@@ -75,6 +99,11 @@ function normalizePhoto(photo: PhotoLike, fallbackId: string) {
     dataUrl: String(photo.dataUrl ?? ""),
     createdAt: String(photo.createdAt ?? ""),
   };
+}
+
+function technicianSection(areaId: unknown) {
+  const key = String(areaId ?? "other");
+  return technicianAreaTitles[key] ?? "Montörens besiktning";
 }
 
 function fieldLookup(sections: SectionMeta[]) {
@@ -149,6 +178,59 @@ export function extractHusstatusImages(submissions: SubmissionLike[], sections: 
               sectionTitle: "Samlat installations- och dimensionsregister",
               fieldKey: "component_register_rows",
               fieldLabel: label,
+              visibility: "CUSTOMER",
+            });
+          });
+        });
+      }
+
+      if (answer.fieldKey === "technician_inspection" && isRecord(payload)) {
+        const areaPhotos = Array.isArray(payload.photos) ? payload.photos : [];
+        areaPhotos.filter(isPhoto).forEach((photo, index) => {
+          const normalized = normalizePhoto(photo, `${submission.id}-technician-area-${index}`);
+          const sectionTitle = technicianSection(photo.areaId);
+          images.push({
+            ...base,
+            ...normalized,
+            sectionId: 30,
+            sectionTitle,
+            fieldKey: "technician_inspection.photos",
+            fieldLabel: `${String(photo.category ?? "Bild")} - ${sectionTitle}`,
+            visibility: "CUSTOMER",
+          });
+        });
+
+        const installations = Array.isArray(payload.installations) ? payload.installations : [];
+        installations.filter(isRecord).forEach((owner: TechnicianPhotoOwner, ownerIndex) => {
+          const photos = Array.isArray(owner.photos) ? owner.photos : [];
+          const title = [owner.type, owner.manufacturer, owner.model].map((value) => String(value ?? "").trim()).filter(Boolean).join(" ") || `Installation ${ownerIndex + 1}`;
+          photos.filter(isPhoto).forEach((photo, photoIndex) => {
+            const normalized = normalizePhoto(photo, `${submission.id}-technician-installation-${ownerIndex}-${photoIndex}`);
+            images.push({
+              ...base,
+              ...normalized,
+              sectionId: 31,
+              sectionTitle: technicianSection(owner.areaId),
+              fieldKey: "technician_inspection.installations",
+              fieldLabel: title,
+              visibility: "CUSTOMER",
+            });
+          });
+        });
+
+        const findings = Array.isArray(payload.findings) ? payload.findings : [];
+        findings.filter(isRecord).forEach((owner: TechnicianPhotoOwner, ownerIndex) => {
+          const photos = Array.isArray(owner.photos) ? owner.photos : [];
+          const title = String(owner.object ?? `Brist ${ownerIndex + 1}`);
+          photos.filter(isPhoto).forEach((photo, photoIndex) => {
+            const normalized = normalizePhoto(photo, `${submission.id}-technician-finding-${ownerIndex}-${photoIndex}`);
+            images.push({
+              ...base,
+              ...normalized,
+              sectionId: 32,
+              sectionTitle: technicianSection(owner.areaId),
+              fieldKey: "technician_inspection.findings",
+              fieldLabel: title,
               visibility: "CUSTOMER",
             });
           });
