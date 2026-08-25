@@ -461,6 +461,8 @@ model Supplier {
   active    Boolean                @default(true)
   prices    ProductSupplierPrice[]
   discounts SupplierDiscountRule[]
+  discountImportBatches SupplierDiscountImportBatch[]
+  productDiscountGroups ProductDiscountGroupMap[]
   createdAt DateTime               @default(now())
   updatedAt DateTime               @updatedAt
 
@@ -499,6 +501,10 @@ model SupplierDiscountRule {
   manufacturerName String?
   category         String?
   productGroup     String?
+  discountGroupCode String?
+  priceLevel       String?
+  rawDiscountValue String?
+  importBatchId    String?
   rskNumber        String?
   discountPercent  Decimal   @db.Decimal(7, 3)
   validFrom        DateTime?
@@ -509,8 +515,75 @@ model SupplierDiscountRule {
   updatedAt        DateTime  @updatedAt
 
   @@index([companyId, supplierId, active])
+  @@index([companyId, supplierId, discountGroupCode, priceLevel, active])
   @@index([companyId, rskNumber, active])
   @@index([companyId, manufacturerName, category, active])
+}
+
+model SupplierDiscountImportBatch {
+  id               String                    @id @default(cuid())
+  companyId        String
+  supplierId       String
+  supplier         Supplier                  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  sourceFileName   String
+  status           String                    @default("preview")
+  totalRows        Int                       @default(0)
+  parsedRows       Int                       @default(0)
+  ignoredRows      Int                       @default(0)
+  errorRows        Int                       @default(0)
+  duplicateRows    Int                       @default(0)
+  importedRows     Int                       @default(0)
+  importedBy       String?
+  validFrom        DateTime?
+  validTo          DateTime?
+  parserVersion    String                    @default("pcl-fixed-v1")
+  formatSummary    Json?
+  rows             SupplierDiscountImportRow[]
+  createdAt        DateTime                  @default(now())
+  confirmedAt      DateTime?
+
+  @@index([companyId, supplierId, status, createdAt])
+}
+
+model SupplierDiscountImportRow {
+  id                String                      @id @default(cuid())
+  companyId         String
+  batchId           String
+  batch             SupplierDiscountImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  supplierId        String
+  rowNumber         Int
+  originalRawLine   String
+  discountGroupCode String?
+  rawDiscountValue  String?
+  description       String?
+  priceLevel        String?
+  validityDate      DateTime?
+  parseStatus       String                      @default("parsed")
+  errorMessage      String?
+  duplicateOfRuleId String?
+  importedRuleId    String?
+  createdAt         DateTime                    @default(now())
+
+  @@index([companyId, batchId, parseStatus])
+  @@index([companyId, supplierId, discountGroupCode, priceLevel])
+}
+
+model ProductDiscountGroupMap {
+  id                String    @id @default(cuid())
+  companyId         String
+  supplierId        String
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  rskNumber         String
+  discountGroupCode String
+  validFrom         DateTime?
+  validTo           DateTime?
+  sourceNote        String?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([companyId, supplierId, rskNumber, discountGroupCode])
+  @@index([companyId, supplierId, rskNumber, active])
 }
 
 model PricingSettings {

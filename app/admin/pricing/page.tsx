@@ -8,7 +8,9 @@ import {
   createMarkupRuleAction,
   createSupplierAction,
   createSupplierPriceAction,
+  confirmStructuredDiscountImportAction,
   importDiscountLetterAction,
+  previewStructuredDiscountLetterAction,
   savePricingSettingsAction,
 } from "./actions";
 
@@ -20,7 +22,11 @@ function sekInput(ore: number) {
   return String(Math.round(ore / 100));
 }
 
-async function getPricingData() {
+function dateLabel(value: Date | null | undefined) {
+  return value ? value.toISOString().slice(0, 10) : "-";
+}
+
+async function getPricingData(discountBatchId?: string) {
   try {
     const [
       total,
@@ -34,6 +40,7 @@ async function getPricingData() {
       estimates,
       reports,
       importLogs,
+      previewBatch,
     ] = await Promise.all([
       prisma.productModel.count(),
       prisma.productModel.count({ where: { supplierPrices: { some: { active: true } } } }),
@@ -102,6 +109,18 @@ async function getPricingData() {
         orderBy: { startedAt: "desc" },
         take: 5,
       }),
+      discountBatchId
+        ? prisma.supplierDiscountImportBatch.findFirst({
+            where: { id: discountBatchId, companyId: COMPANY_ID },
+            include: {
+              supplier: { select: { name: true } },
+              rows: {
+                orderBy: { rowNumber: "asc" },
+                take: 80,
+              },
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
     return {
@@ -125,6 +144,7 @@ async function getPricingData() {
       estimates,
       reports,
       importLogs,
+      previewBatch,
     };
   } catch {
     return {
@@ -140,12 +160,18 @@ async function getPricingData() {
       estimates: [],
       reports: [],
       importLogs: [],
+      previewBatch: null,
     };
   }
 }
 
-export default async function PricingPage() {
-  const data = await getPricingData();
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ discountBatchId?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const data = await getPricingData(resolvedSearchParams?.discountBatchId);
   const settings = data.settings ?? defaultPricingSettings;
 
   return (
@@ -333,6 +359,32 @@ export default async function PricingPage() {
             ) : null}
           </form>
 
+          <form className="portalPanel pricingForm" action={previewStructuredDiscountLetterAction}>
+            <div className="panelTitle">
+              <h3>Strukturerad TXT-import</h3>
+              <span>För stora PCL-rabattbrev. Skapar först förhandsgranskning.</span>
+            </div>
+            <label>Leverantör
+              <select name="structuredSupplierId" required>
+                <option value="">Välj leverantör</option>
+                {data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+              </select>
+            </label>
+            <div className="pricingFields two">
+              <label>Giltig från<input name="structuredValidFrom" type="date" /></label>
+              <label>Giltig till<input name="structuredValidTo" type="date" defaultValue="2024-12-31" /></label>
+            </div>
+            <label className="photoDrop wide">Ladda upp TXT-rabattbrev
+              <input accept=".txt,text/plain" name="structuredFile" required type="file" />
+            </label>
+            <div className="pricingImportHelp wide">
+              <strong>Parserformat PCL</strong>
+              <span>Exempel: PCL110035300000000000000000TERMOSTATBLANDARE, FMM P0</span>
+              <span>Gruppkod: PCL110. Råvärde: 0353. Prisnivå: P0. Råvärdet sparas utan procenttolkning.</span>
+            </div>
+            <button className="buttonLink primary" type="submit">Förhandsgranska TXT</button>
+          </form>
+
           <form className="portalPanel pricingForm" action={createMarkupRuleAction}>
             <div className="panelTitle"><h3>Påslag</h3><span>Produktregel går före kategori, annars globalt påslag</span></div>
             <label>Produkt
@@ -351,6 +403,53 @@ export default async function PricingPage() {
             <button className="buttonLink" type="submit">Lägg påslag</button>
           </form>
         </section>
+
+        {data.previewBatch ? (
+          <section className="portalPanel pricingForm">
+            <div className="panelTitle">
+              <h3>Förhandsgranskning av rabattbrev</h3>
+              <span>{data.previewBatch.sourceFileName} · {data.previewBatch.supplier.name}</span>
+            </div>
+            <section className="adminKpis">
+              <article className="portalPanel"><span>Totalt</span><strong>{data.previewBatch.totalRows}</strong><small>Rader i filen</small></article>
+              <article className="portalPanel"><span>Tolkade</span><strong>{data.previewBatch.parsedRows}</strong><small>Redo för import</small></article>
+              <article className="portalPanel"><span>Fel</span><strong>{data.previewBatch.errorRows}</strong><small>Importeras inte</small></article>
+              <article className="portalPanel"><span>Dubletter</span><strong>{data.previewBatch.duplicateRows}</strong><small>Samma grupp/prisnivå/datum</small></article>
+            </section>
+            <div className="pricingImportHelp wide">
+              <strong>Identifierat format</strong>
+              <span>Gruppkod: tecken 1-6. Råvärde: tecken 7-10. Nollutfyllnad följer innan beskrivning.</span>
+              <span>Prisnivå måste sluta med P0, P1, P2, LA eller LB. Råvärdet sparas som rawDiscountValue och räknas inte som procent.</span>
+            </div>
+            <form className="pricingInlineForm" action={confirmStructuredDiscountImportAction}>
+              <input name="batchId" type="hidden" value={data.previewBatch.id} />
+              <label>Dubletter
+                <select name="duplicateMode" defaultValue="skip">
+                  <option value="skip">Hoppa över</option>
+                  <option value="update">Uppdatera befintlig</option>
+                  <option value="new_version">Skapa ny version</option>
+                </select>
+              </label>
+              <button className="buttonLink primary" disabled={data.previewBatch.status !== "preview"} type="submit">Bekräfta import</button>
+            </form>
+            <table>
+              <thead><tr><th>Rad</th><th>Gruppkod</th><th>Beskrivning</th><th>Prisnivå</th><th>Råvärde</th><th>Datum</th><th>Status</th></tr></thead>
+              <tbody>
+                {data.previewBatch.rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.rowNumber}</td>
+                    <td>{row.discountGroupCode ?? "-"}</td>
+                    <td>{row.description ?? row.errorMessage ?? row.originalRawLine.slice(0, 80)}</td>
+                    <td>{row.priceLevel ?? "-"}</td>
+                    <td>{row.rawDiscountValue ?? "-"}</td>
+                    <td>{dateLabel(row.validityDate)}</td>
+                    <td>{row.parseStatus}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        ) : null}
 
         <section className="portalPanel pricingForm">
           <div className="panelTitle"><h3>Åtgärdsmallar</h3><span>Standardtider, förbrukning, övriga avgifter och ROT</span></div>

@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { calculateEstimate } from "../../../lib/pricing-engine";
+import { analyzeSupplierDiscountLetter } from "../../../lib/supplier-discount-letter-parser";
 import { getCurrentSessionUser } from "../../../lib/session";
 
 const COMPANY_ID = "org_rehn_vvs";
@@ -180,6 +182,13 @@ async function requireInternalUser() {
   const user = await getCurrentSessionUser();
   if (!user || user.role === "CUSTOMER") throw new Error("Saknar behörighet.");
   return user;
+}
+
+function dateValue(value: FormDataEntryValue | null) {
+  const raw = text(value);
+  if (!raw) return null;
+  const date = new Date(`${raw}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export async function savePricingSettingsAction(formData: FormData) {
@@ -369,6 +378,190 @@ export async function importDiscountLetterAction(formData: FormData) {
   });
 
   revalidatePath("/admin/pricing");
+}
+
+export async function previewStructuredDiscountLetterAction(formData: FormData) {
+  const user = await requireInternalUser();
+  const companyId = user.companyId || COMPANY_ID;
+  const supplierId = text(formData.get("structuredSupplierId"));
+  const validFrom = dateValue(formData.get("structuredValidFrom"));
+  const validTo = dateValue(formData.get("structuredValidTo"));
+  const file = formData.get("structuredFile");
+
+  if (!supplierId || !(file instanceof File) || file.size === 0) return;
+
+  const rawText = await file.text();
+  const analysis = analyzeSupplierDiscountLetter(rawText);
+  const parsedRows = analysis.rows.filter((row) => row.parseStatus === "parsed");
+  const duplicateKeys = new Map<string, string>();
+
+  if (parsedRows.length) {
+    const existing = await prisma.supplierDiscountRule.findMany({
+      where: {
+        companyId,
+        supplierId,
+        discountGroupCode: { in: parsedRows.map((row) => row.discountGroupCode).filter((value): value is string => Boolean(value)) },
+        active: true,
+      },
+      select: { id: true, discountGroupCode: true, priceLevel: true, validFrom: true, validTo: true },
+    });
+
+    for (const rule of existing) {
+      duplicateKeys.set([
+        rule.discountGroupCode ?? "",
+        rule.priceLevel ?? "",
+        rule.validFrom?.toISOString().slice(0, 10) ?? "",
+        rule.validTo?.toISOString().slice(0, 10) ?? "",
+      ].join("|"), rule.id);
+    }
+  }
+
+  const rowsWithDuplicates = analysis.rows.map((row) => {
+    const key = [
+      row.discountGroupCode ?? "",
+      row.priceLevel ?? "",
+      validFrom?.toISOString().slice(0, 10) ?? "",
+      validTo?.toISOString().slice(0, 10) ?? "",
+    ].join("|");
+    const duplicateOfRuleId = duplicateKeys.get(key);
+    return row.parseStatus === "parsed" && duplicateOfRuleId
+      ? { ...row, parseStatus: "duplicate" as const, duplicateOfRuleId }
+      : row;
+  });
+
+  const batch = await prisma.supplierDiscountImportBatch.create({
+    data: {
+      companyId,
+      supplierId,
+      sourceFileName: file.name,
+      importedBy: user.id,
+      validFrom,
+      validTo,
+      totalRows: analysis.totalRows,
+      parsedRows: rowsWithDuplicates.filter((row) => row.parseStatus === "parsed").length,
+      ignoredRows: rowsWithDuplicates.filter((row) => row.parseStatus === "ignored").length,
+      errorRows: rowsWithDuplicates.filter((row) => row.parseStatus === "parse_error").length,
+      duplicateRows: rowsWithDuplicates.filter((row) => row.parseStatus === "duplicate").length,
+      formatSummary: analysis.formatSummary as Prisma.InputJsonValue,
+      rows: {
+        create: rowsWithDuplicates.slice(0, 20000).map((row) => ({
+          companyId,
+          supplierId,
+          rowNumber: row.rowNumber,
+          originalRawLine: row.originalRawLine,
+          discountGroupCode: row.discountGroupCode,
+          rawDiscountValue: row.rawDiscountValue,
+          description: row.description,
+          priceLevel: row.priceLevel,
+          validityDate: validTo,
+          parseStatus: row.parseStatus,
+          errorMessage: row.errorMessage,
+          duplicateOfRuleId: "duplicateOfRuleId" in row ? row.duplicateOfRuleId : null,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/admin/pricing");
+  redirect(`/admin/pricing?discountBatchId=${batch.id}`);
+}
+
+export async function confirmStructuredDiscountImportAction(formData: FormData) {
+  const user = await requireInternalUser();
+  const companyId = user.companyId || COMPANY_ID;
+  const batchId = text(formData.get("batchId"));
+  const duplicateMode = text(formData.get("duplicateMode")) || "skip";
+  if (!batchId) return;
+
+  const importableStatuses = duplicateMode === "skip" ? ["parsed"] : ["parsed", "duplicate"];
+  const batch = await prisma.supplierDiscountImportBatch.findFirst({
+    where: { id: batchId, companyId, status: "preview" },
+    include: {
+      rows: {
+        where: { parseStatus: { in: importableStatuses } },
+        orderBy: { rowNumber: "asc" },
+      },
+    },
+  });
+  if (!batch) return;
+
+  let importedRows = 0;
+  for (const row of batch.rows) {
+    if (!row.discountGroupCode || !row.rawDiscountValue || !row.description || !row.priceLevel) continue;
+
+    if (row.parseStatus === "duplicate" && duplicateMode === "skip") continue;
+    if (row.parseStatus === "duplicate" && duplicateMode === "update") {
+      const existing = await prisma.supplierDiscountRule.findFirst({
+        where: {
+          companyId,
+          supplierId: batch.supplierId,
+          discountGroupCode: row.discountGroupCode,
+          priceLevel: row.priceLevel,
+          validFrom: batch.validFrom,
+          validTo: batch.validTo,
+          active: true,
+        },
+      });
+      if (existing) {
+        await prisma.supplierDiscountRule.update({
+          where: { id: existing.id },
+          data: {
+            rawDiscountValue: row.rawDiscountValue,
+            manufacturerName: row.description,
+            productGroup: row.description,
+            importBatchId: batch.id,
+            sourceNote: `Strukturerat rabattbrev ${batch.sourceFileName}, rad ${row.rowNumber}`,
+          },
+        });
+        await prisma.supplierDiscountImportRow.update({ where: { id: row.id }, data: { importedRuleId: existing.id } });
+        importedRows += 1;
+        continue;
+      }
+    }
+
+    const rule = await prisma.supplierDiscountRule.create({
+      data: {
+        companyId,
+        supplierId: batch.supplierId,
+        discountGroupCode: row.discountGroupCode,
+        priceLevel: row.priceLevel,
+        rawDiscountValue: row.rawDiscountValue,
+        manufacturerName: row.description,
+        productGroup: row.description,
+        discountPercent: 0,
+        validFrom: batch.validFrom,
+        validTo: batch.validTo,
+        importBatchId: batch.id,
+        sourceNote: `Strukturerat rabattbrev ${batch.sourceFileName}, rad ${row.rowNumber}. RawDiscountValue är inte verifierat som procent.`,
+      },
+    });
+    await prisma.supplierDiscountImportRow.update({ where: { id: row.id }, data: { importedRuleId: rule.id } });
+    importedRows += 1;
+  }
+
+  await prisma.supplierDiscountImportBatch.update({
+    where: { id: batch.id },
+    data: {
+      status: "confirmed",
+      importedRows,
+      confirmedAt: new Date(),
+    },
+  });
+
+  await prisma.productImportLog.create({
+    data: {
+      source: `Rabattbrev TXT: ${batch.sourceFileName}`,
+      status: "COMPLETED",
+      createdCount: importedRows,
+      updatedCount: duplicateMode === "update" ? importedRows : 0,
+      skippedCount: batch.duplicateRows,
+      errorCount: batch.errorRows,
+      completedAt: new Date(),
+    },
+  });
+
+  revalidatePath("/admin/pricing");
+  redirect(`/admin/pricing?discountBatchId=${batch.id}`);
 }
 
 export async function createMarkupRuleAction(formData: FormData) {
