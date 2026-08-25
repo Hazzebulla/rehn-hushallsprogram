@@ -8,6 +8,7 @@ import {
   createMarkupRuleAction,
   createSupplierAction,
   createSupplierPriceAction,
+  importDiscountLetterAction,
   savePricingSettingsAction,
 } from "./actions";
 
@@ -33,6 +34,7 @@ async function getPricingData() {
       templates,
       estimates,
       reports,
+      importLogs,
     ] = await Promise.all([
       prisma.productModel.count(),
       prisma.productModel.count({ where: { supplierPrices: { some: { active: true } } } }),
@@ -58,6 +60,11 @@ async function getPricingData() {
         include: { property: { include: { customer: true } } },
         orderBy: { updatedAt: "desc" },
         take: 20,
+      }),
+      prisma.productImportLog.findMany({
+        where: { source: { startsWith: "Rabattbrev:" } },
+        orderBy: { startedAt: "desc" },
+        take: 5,
       }),
     ]);
 
@@ -88,6 +95,7 @@ async function getPricingData() {
       templates,
       estimates,
       reports,
+      importLogs,
     };
   } catch {
     return {
@@ -103,6 +111,7 @@ async function getPricingData() {
       templates: [],
       estimates: [],
       reports: [],
+      importLogs: [],
     };
   }
 }
@@ -256,6 +265,43 @@ export default async function PricingPage() {
             <label>Produktgrupp<input name="productGroup" /></label>
             <label>Källa/notering<input name="sourceNote" /></label>
             <button className="buttonLink" type="submit">Lägg rabattregel</button>
+          </form>
+
+          <form className="portalPanel pricingForm" action={importDiscountLetterAction}>
+            <div className="panelTitle">
+              <h3>Importera rabattbrev</h3>
+              <span>CSV/TXT/PDF. CSV är säkrast, PDF fungerar om texten går att läsa.</span>
+            </div>
+            <label>Standardleverantör
+              <select name="supplierId">
+                <option value="">Försök läsa från filen</option>
+                {data.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+              </select>
+            </label>
+            <label className="photoDrop wide">Ladda upp rabattbrev
+              <input accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" name="file" type="file" />
+            </label>
+            <label className="wide">Eller klistra in text / CSV
+              <textarea
+                name="discountText"
+                placeholder={"leverantör;tillverkare;kategori;produktgrupp;rsk;rabatt\nDahl;FM Mattsson;Blandare;;8344302;42"}
+                rows={6}
+              />
+            </label>
+            <div className="pricingImportHelp wide">
+              <strong>Rekommenderat format</strong>
+              <span>En rad per rabattregel. Kolumner: leverantör, tillverkare, kategori, produktgrupp, rsk, rabatt.</span>
+              <span>Exempel fri text: Dahl FM Mattsson blandare 42 % eller RSK 8344302 rabatt 42 %.</span>
+            </div>
+            <button className="buttonLink primary" type="submit">Läs in rabattbrev</button>
+            {data.importLogs.length ? (
+              <div className="pricingImportHelp wide">
+                <strong>Senaste importer</strong>
+                {data.importLogs.map((log) => (
+                  <span key={log.id}>{log.source.replace("Rabattbrev: ", "")}: {log.createdCount} nya, {log.updatedCount} uppdaterade, {log.skippedCount} överhoppade</span>
+                ))}
+              </div>
+            ) : null}
           </form>
 
           <form className="portalPanel pricingForm" action={createMarkupRuleAction}>

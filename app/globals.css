@@ -6775,6 +6775,7 @@ td {
 
 .pricingForm input,
 .pricingForm select,
+.pricingForm textarea,
 .pricingInlineForm input,
 .pricingInlineForm select {
   min-width: 0;
@@ -6786,6 +6787,11 @@ td {
   padding: 11px 12px;
   font: inherit;
   text-transform: none;
+}
+
+.pricingForm textarea {
+  min-height: 132px;
+  resize: vertical;
 }
 
 .pricingFields,
@@ -6829,6 +6835,27 @@ td {
   background: rgba(88, 221, 236, 0.07);
   font-size: 12px;
   font-weight: 800;
+}
+
+.pricingImportHelp {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid rgba(88, 221, 236, 0.22);
+  border-radius: 8px;
+  background: rgba(88, 221, 236, 0.07);
+}
+
+.pricingImportHelp strong {
+  color: var(--cyan);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.pricingImportHelp span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
 .pricingAdmin table {
