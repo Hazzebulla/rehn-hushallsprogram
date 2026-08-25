@@ -199,9 +199,12 @@ async function rowsFromSpreadsheetLikeFile(file: File) {
   ) {
     const XLSX = await import("xlsx");
     const workbook = XLSX.read(bytes, { type: "buffer", cellDates: false, raw: false });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!sheet) return { bytes, rows: [] as unknown[][] };
-    return { bytes, rows: XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "" }) as unknown[][] };
+    const rows = workbook.SheetNames.flatMap((sheetName) => {
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) return [];
+      return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "" }) as unknown[][];
+    });
+    return { bytes, rows };
   }
 
   const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
@@ -618,7 +621,10 @@ export async function previewDahlPriceListAction(formData: FormData) {
   const analysis = analyzeDahlPriceListRows(rows);
   const validFrom = dahlDateOnlyToPrismaDate(analysis.validFrom);
   const validTo = dahlDateOnlyToPrismaDate(analysis.validTo);
-  const validRows = analysis.rows.filter((row) => row.parseStatus === "parsed" && row.supplierArticleNumber);
+  const validRows = analysis.rows.filter((row) => (
+    (row.parseStatus === "ready" || row.parseStatus === "ready_with_warning" || row.parseStatus === "parsed")
+    && row.supplierArticleNumber
+  ));
   const articleNumbers = [...new Set(validRows.map((row) => row.supplierArticleNumber).filter((value): value is string => Boolean(value)))];
 
   const [existingProducts, alreadyConfirmedFile, existingPriceLists] = await Promise.all([
@@ -654,7 +660,10 @@ export async function previewDahlPriceListAction(formData: FormData) {
   let priceChanges = 0;
   let duplicateRows = 0;
   const rowsWithPreview = analysis.rows.map((row) => {
-    if (row.parseStatus !== "parsed" || !row.supplierArticleNumber) return row;
+    if (
+      !(row.parseStatus === "ready" || row.parseStatus === "ready_with_warning" || row.parseStatus === "parsed")
+      || !row.supplierArticleNumber
+    ) return row;
     const product = productMap.get(row.supplierArticleNumber);
     if (product) existingProductCount += 1;
     else newProductCount += 1;
@@ -678,7 +687,7 @@ export async function previewDahlPriceListAction(formData: FormData) {
       validTo,
       totalRows: analysis.totalRows,
       productRows: analysis.productRows,
-      validRows: rowsWithPreview.filter((row) => row.parseStatus === "parsed").length,
+      validRows: rowsWithPreview.filter((row) => row.parseStatus === "ready" || row.parseStatus === "ready_with_warning" || row.parseStatus === "parsed").length,
       invalidRows: rowsWithPreview.filter((row) => row.parseStatus === "parse_error").length,
       ignoredRows: analysis.ignoredRows,
       duplicateRows: duplicateRows + (alreadyConfirmedFile ? analysis.validRows : 0),
@@ -688,6 +697,9 @@ export async function previewDahlPriceListAction(formData: FormData) {
       importedBy: user.id,
       formatSummary: {
         ...analysis.formatSummary,
+        detectedFormat: analysis.detectedFormat,
+        metadataSource: analysis.metadataSource,
+        warningRows: analysis.warningRows,
         duplicateFileWarning: alreadyConfirmedFile ? "Den här filen verkar redan vara importerad." : null,
       } as Prisma.InputJsonValue,
       rows: {
@@ -728,7 +740,7 @@ export async function confirmDahlPriceListImportAction(formData: FormData) {
 
   const batch = await prisma.supplierPriceImportBatch.findFirst({
     where: { id: batchId, companyId, status: "preview" },
-    include: { rows: { where: { parseStatus: { in: ["parsed", "duplicate"] } }, orderBy: { rowNumber: "asc" } } },
+    include: { rows: { where: { parseStatus: { in: ["ready", "ready_with_warning", "parsed", "duplicate"] } }, orderBy: { rowNumber: "asc" } } },
   });
   if (!batch) return;
 

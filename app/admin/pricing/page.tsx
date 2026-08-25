@@ -29,6 +29,18 @@ function dateLabel(value: Date | null | undefined) {
   return formatDateOnly(value);
 }
 
+function jsonString(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const item = (value as Record<string, unknown>)[key];
+  return typeof item === "string" ? item : null;
+}
+
+function jsonNumber(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return 0;
+  const item = (value as Record<string, unknown>)[key];
+  return typeof item === "number" ? item : 0;
+}
+
 async function getPricingData(discountBatchId?: string, dahlBatchId?: string) {
   try {
     const [
@@ -551,6 +563,12 @@ export default async function PricingPage({
               <article className="portalPanel"><span>Dubletter</span><strong>{data.dahlPreviewBatch.duplicateRows}</strong><small>Samma fil eller prislista</small></article>
             </section>
             <section className="adminKpis">
+              <article className="portalPanel"><span>Format</span><strong>{jsonString(data.dahlPreviewBatch.formatSummary, "detectedFormat") ?? "Okänt"}</strong><small>Dahl-import</small></article>
+              <article className="portalPanel"><span>Prislistkod från</span><strong>{jsonString(data.dahlPreviewBatch.formatSummary, "metadataSource") ?? "okänd"}</strong><small>header eller Pr.l</small></article>
+              <article className="portalPanel"><span>Varningar</span><strong>{jsonNumber(data.dahlPreviewBatch.formatSummary, "warningRows")}</strong><small>Importeras men bör kontrolleras</small></article>
+              <article className="portalPanel"><span>Status</span><strong>{data.dahlPreviewBatch.status}</strong><small>Preview/import</small></article>
+            </section>
+            <section className="adminKpis">
               <article className="portalPanel"><span>Nya produkter</span><strong>{data.dahlPreviewBatch.newProducts}</strong><small>Dahl artikelnummer saknas idag</small></article>
               <article className="portalPanel"><span>Befintliga</span><strong>{data.dahlPreviewBatch.existingProducts}</strong><small>Uppdateras med rådata</small></article>
               <article className="portalPanel"><span>Nya priser</span><strong>{data.dahlPreviewBatch.validRows}</strong><small>Efter bekräftelse minus dubletter</small></article>
@@ -584,7 +602,7 @@ export default async function PricingPage({
                     <td>{row.ntoRawValue ?? "-"}</td>
                     <td>{row.priceListCode ?? "-"}</td>
                     <td>{row.parseStatus === "duplicate" ? "duplicate" : row.statusRaw ?? row.parseStatus}</td>
-                    <td>{row.errorMessage ?? "-"}</td>
+                    <td>{row.errorMessage ?? (row.parseStatus === "ready_with_warning" ? "Varning, se rådata" : "-")}</td>
                   </tr>
                 ))}
               </tbody>
