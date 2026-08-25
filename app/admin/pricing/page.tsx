@@ -25,11 +25,10 @@ async function getPricingData() {
     const [
       total,
       priced,
+      discountCount,
       categories,
       products,
       suppliers,
-      discounts,
-      markups,
       settings,
       templates,
       estimates,
@@ -38,28 +37,65 @@ async function getPricingData() {
     ] = await Promise.all([
       prisma.productModel.count(),
       prisma.productModel.count({ where: { supplierPrices: { some: { active: true } } } }),
+      prisma.supplierDiscountRule.count({ where: { companyId: COMPANY_ID, active: true } }),
       prisma.productModel.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } }),
       prisma.productModel.findMany({
-        include: { manufacturer: true, supplierPrices: { where: { active: true }, include: { supplier: true } } },
+        select: {
+          id: true,
+          rskNumber: true,
+          productName: true,
+          modelName: true,
+          category: true,
+          unit: true,
+          manufacturer: { select: { name: true } },
+        },
         orderBy: [{ active: "desc" }, { updatedAt: "desc" }],
-        take: 30,
+        take: 18,
       }),
-      prisma.supplier.findMany({ where: { companyId: COMPANY_ID }, orderBy: [{ active: "desc" }, { name: "asc" }] }),
-      prisma.supplierDiscountRule.findMany({ where: { companyId: COMPANY_ID }, include: { supplier: true }, orderBy: { createdAt: "desc" }, take: 20 }),
-      prisma.materialMarkupRule.findMany({ where: { companyId: COMPANY_ID }, orderBy: { createdAt: "desc" }, take: 20 }),
+      prisma.supplier.findMany({
+        where: { companyId: COMPANY_ID },
+        select: { id: true, name: true, active: true },
+        orderBy: [{ active: "desc" }, { name: "asc" }],
+      }),
       prisma.pricingSettings.findUnique({ where: { companyId: COMPANY_ID } }),
-      prisma.actionTemplate.findMany({ where: { companyId: COMPANY_ID }, orderBy: [{ active: "desc" }, { name: "asc" }] }),
+      prisma.actionTemplate.findMany({
+        where: { companyId: COMPANY_ID },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          defaultWorkMinutes: true,
+          rotEligible: true,
+          requiresQuote: true,
+        },
+        orderBy: [{ active: "desc" }, { name: "asc" }],
+      }),
       prisma.actionEstimate.findMany({
         where: { companyId: COMPANY_ID },
-        include: { materialRows: true, laborRows: true, otherCostRows: true, report: { include: { property: true } } },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          rotDeductionOre: true,
+          customerTotalOre: true,
+          publishedPriceOre: true,
+          manualPriceOre: true,
+          materialRows: { select: { totalCustomerPriceOre: true } },
+          laborRows: { select: { totalOre: true } },
+          report: { select: { reportNo: true } },
+        },
         orderBy: { createdAt: "desc" },
-        take: 8,
+        take: 5,
       }),
       prisma.houseReport.findMany({
         where: { companyId: COMPANY_ID },
-        include: { property: { include: { customer: true } } },
+        select: {
+          id: true,
+          reportNo: true,
+          property: { select: { address: true, customer: { select: { name: true } } } },
+        },
         orderBy: { updatedAt: "desc" },
-        take: 20,
+        take: 12,
       }),
       prisma.productImportLog.findMany({
         where: { source: { startsWith: "Rabattbrev:" } },
@@ -72,6 +108,7 @@ async function getPricingData() {
       databaseOnline: true,
       total,
       priced,
+      discountCount,
       categories: categories.map((item) => item.category).filter(Boolean),
       products: products.map((product) => ({
         id: product.id,
@@ -81,16 +118,8 @@ async function getPricingData() {
         modelName: product.modelName,
         category: product.category,
         unit: product.unit,
-        supplierPrices: product.supplierPrices.map((price) => ({
-          id: price.id,
-          supplierId: price.supplierId,
-          supplierName: price.supplier.name,
-          listPriceOre: price.listPriceOre,
-        })),
       })),
       suppliers,
-      discounts,
-      markups,
       settings,
       templates,
       estimates,
@@ -102,11 +131,10 @@ async function getPricingData() {
       databaseOnline: false,
       total: 0,
       priced: 0,
+      discountCount: 0,
       categories: [],
       products: [],
       suppliers: [],
-      discounts: [],
-      markups: [],
       settings: null,
       templates: [],
       estimates: [],
@@ -141,7 +169,7 @@ export default async function PricingPage() {
         <section className="adminKpis">
           <article className="portalPanel"><span>Produkter</span><strong>{data.total}</strong><small>Totalt i registret</small></article>
           <article className="portalPanel"><span>Med leverantörspris</span><strong>{data.priced}</strong><small>Kalkylbara material</small></article>
-          <article className="portalPanel"><span>Rabattbrev</span><strong>{data.discounts.length}</strong><small>Prioritet: RSK, grupp, tillverkare, leverantör</small></article>
+          <article className="portalPanel"><span>Rabattbrev</span><strong>{data.discountCount}</strong><small>Prioritet: RSK, grupp, tillverkare, leverantör</small></article>
           <article className="portalPanel"><span>Åtgärdsmallar</span><strong>{data.templates.length}</strong><small>Standardtider och ROT</small></article>
         </section>
 

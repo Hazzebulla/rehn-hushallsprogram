@@ -2,8 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
-import { PDFParse } from "pdf-parse";
-import * as XLSX from "xlsx";
 import { prisma } from "../../../lib/prisma";
 import { calculateEstimate } from "../../../lib/pricing-engine";
 import { getCurrentSessionUser } from "../../../lib/session";
@@ -157,6 +155,7 @@ async function textFromDiscountImportFile(file: File) {
     || file.type.includes("spreadsheet")
     || file.type.includes("excel")
   ) {
+    const XLSX = await import("xlsx");
     const workbook = XLSX.read(bytes, { type: "buffer", cellDates: false });
     return workbook.SheetNames
       .map((sheetName) => {
@@ -168,6 +167,7 @@ async function textFromDiscountImportFile(file: File) {
       .join("\n");
   }
   if (file.type.includes("pdf") || lowerName.endsWith(".pdf")) {
+    const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: bytes });
     const parsed = await parser.getText();
     await parser.destroy();
