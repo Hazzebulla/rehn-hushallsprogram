@@ -6699,3 +6699,113 @@ td {
     display: none;
   }
 }
+
+.pricingAdmin {
+  min-width: 0;
+}
+
+.pricingGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.pricingForm {
+  min-width: 0;
+}
+
+.pricingForm label,
+.pricingInlineForm label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pricingForm input,
+.pricingForm select,
+.pricingInlineForm input,
+.pricingInlineForm select {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid rgba(88, 221, 236, 0.28);
+  border-radius: 6px;
+  background: rgba(2, 13, 17, 0.72);
+  color: var(--text);
+  padding: 11px 12px;
+  font: inherit;
+  text-transform: none;
+}
+
+.pricingFields,
+.pricingInlineForm {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pricingFields.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pricingCheck {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  color: var(--text) !important;
+  text-transform: none !important;
+}
+
+.pricingCheck input {
+  width: 18px !important;
+  height: 18px;
+  accent-color: var(--cyan);
+}
+
+.pricingList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pricingList span {
+  border: 1px solid rgba(88, 221, 236, 0.26);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--text);
+  background: rgba(88, 221, 236, 0.07);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pricingAdmin table {
+  width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .pricingGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .pricingFields,
+  .pricingInlineForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .pricingFields,
+  .pricingFields.two,
+  .pricingInlineForm {
+    grid-template-columns: 1fr;
+  }
+
+  .pricingAdmin .portalPanel {
+    overflow-x: auto;
+  }
+}

@@ -413,9 +413,14 @@ model ProductModel {
   id                       String              @id @default(cuid())
   manufacturerId           String
   manufacturer             Manufacturer        @relation(fields: [manufacturerId], references: [id], onDelete: Cascade)
+  rskNumber                String?
+  productName              String?
   category                 String
   modelName                String
   systemType               String?
+  technicalDescription     String?
+  productImageUrl          String?
+  unit                     String              @default("st")
   productionStartYear      Int?
   productionEndYear        Int?
   outputMinKw              Float?
@@ -438,12 +443,216 @@ model ProductModel {
   propertyComponents       PropertyComponent[]
   favorites                ProductFavorite[]
   usage                    ProductUsage[]
+  supplierPrices           ProductSupplierPrice[]
+  estimateMaterialRows     EstimateMaterialRow[]
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 
   @@unique([manufacturerId, category, modelName])
   @@index([category, active])
+  @@index([rskNumber])
   @@index([modelName])
+}
+
+model Supplier {
+  id        String                 @id @default(cuid())
+  companyId String
+  name      String
+  active    Boolean                @default(true)
+  prices    ProductSupplierPrice[]
+  discounts SupplierDiscountRule[]
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId, active])
+}
+
+model ProductSupplierPrice {
+  id             String       @id @default(cuid())
+  companyId      String
+  productModelId String
+  productModel   ProductModel @relation(fields: [productModelId], references: [id], onDelete: Cascade)
+  supplierId     String
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierSku    String?
+  listPriceOre   Int
+  currency       String       @default("SEK")
+  unit           String       @default("st")
+  active         Boolean      @default(true)
+  validFrom      DateTime?
+  validTo        DateTime?
+  sourceNote     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([companyId, productModelId, supplierId])
+  @@index([companyId, supplierId, active])
+  @@index([companyId, productModelId, active])
+}
+
+model SupplierDiscountRule {
+  id               String    @id @default(cuid())
+  companyId        String
+  supplierId       String?
+  supplier         Supplier? @relation(fields: [supplierId], references: [id])
+  manufacturerName String?
+  category         String?
+  productGroup     String?
+  rskNumber        String?
+  discountPercent  Decimal   @db.Decimal(7, 3)
+  validFrom        DateTime?
+  validTo          DateTime?
+  sourceNote       String?
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([companyId, supplierId, active])
+  @@index([companyId, rskNumber, active])
+  @@index([companyId, manufacturerName, category, active])
+}
+
+model PricingSettings {
+  id                         String   @id @default(cuid())
+  companyId                  String   @unique
+  preferredSupplierId        String?
+  autoSelectLowestNetPrice   Boolean  @default(false)
+  standardHourlyRateOre      Int      @default(69500)
+  materialMarkupPercent      Decimal  @default(35) @db.Decimal(7, 3)
+  serviceVehicleFeeOre       Int      @default(49500)
+  minimumBillingMinutes      Int      @default(60)
+  vatPercent                 Decimal  @default(25) @db.Decimal(7, 3)
+  rotEnabledByDefault        Boolean  @default(false)
+  rotDeductionPercent        Decimal  @default(30) @db.Decimal(7, 3)
+  rotMaxDeductionOre         Int      @default(5000000)
+  customerRoundingIncrementOre Int    @default(100)
+  estimateValidityDays       Int      @default(30)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+}
+
+model MaterialMarkupRule {
+  id            String   @id @default(cuid())
+  companyId     String
+  productModelId String?
+  category      String?
+  markupPercent Decimal  @db.Decimal(7, 3)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([companyId, productModelId, active])
+  @@index([companyId, category, active])
+}
+
+model ActionTemplate {
+  id                    String   @id @default(cuid())
+  companyId             String
+  name                  String
+  category              String
+  description           String?
+  defaultWorkMinutes    Int      @default(60)
+  defaultConsumablesOre Int      @default(0)
+  defaultOtherCostOre   Int      @default(0)
+  recommendedProductModelId String?
+  rotEligible           Boolean  @default(true)
+  requiresQuote         Boolean  @default(false)
+  active                Boolean  @default(true)
+  estimates             ActionEstimate[]
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId, category, active])
+}
+
+model ActionEstimate {
+  id                    String                @id @default(cuid())
+  companyId             String
+  reportId              String
+  report                HouseReport           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  findingId             String?
+  recommendedActionId   String?
+  actionTemplateId      String?
+  actionTemplate        ActionTemplate?       @relation(fields: [actionTemplateId], references: [id])
+  title                 String
+  status                String                @default("draft")
+  priceMode             String                @default("fixed")
+  requiresQuote         Boolean               @default(false)
+  rotSelected           String                @default("unknown")
+  snapshot              Json
+  subtotalOre           Int                   @default(0)
+  vatOre                Int                   @default(0)
+  totalInclVatOre       Int                   @default(0)
+  rotDeductionOre       Int                   @default(0)
+  customerTotalOre      Int                   @default(0)
+  publishedPriceOre     Int?
+  manualPriceOre        Int?
+  manualPriceReason     String?
+  approvedAt            DateTime?
+  approvedBy            String?
+  publishedAt           DateTime?
+  publishedBy           String?
+  materialRows          EstimateMaterialRow[]
+  laborRows             EstimateLaborRow[]
+  otherCostRows         EstimateOtherCostRow[]
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@index([companyId, reportId, status])
+  @@index([companyId, actionTemplateId])
+}
+
+model EstimateMaterialRow {
+  id                      String         @id @default(cuid())
+  companyId               String
+  estimateId              String
+  estimate                ActionEstimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  productModelId          String?
+  productModel            ProductModel?  @relation(fields: [productModelId], references: [id])
+  description             String
+  rskNumber               String?
+  quantity                Decimal        @default(1) @db.Decimal(10, 3)
+  unit                    String         @default("st")
+  supplierName            String?
+  listPriceOreAtEstimate  Int?
+  discountPercentAtEstimate Decimal?     @db.Decimal(7, 3)
+  netPriceOreAtEstimate   Int?
+  markupPercentAtEstimate Decimal?       @db.Decimal(7, 3)
+  customerUnitPriceOreAtEstimate Int
+  totalCustomerPriceOre   Int
+  snapshot                Json
+  createdAt               DateTime       @default(now())
+}
+
+model EstimateLaborRow {
+  id                    String         @id @default(cuid())
+  companyId             String
+  estimateId            String
+  estimate              ActionEstimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  workType              String         @default("VVS-montör")
+  minutes               Int
+  standardMinutes       Int?
+  hourlyRateOreAtEstimate Int
+  rotEligible           Boolean        @default(true)
+  totalOre              Int
+  snapshot              Json
+  createdAt             DateTime       @default(now())
+}
+
+model EstimateOtherCostRow {
+  id                    String         @id @default(cuid())
+  companyId             String
+  estimateId            String
+  estimate              ActionEstimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  description           String
+  quantity              Decimal        @default(1) @db.Decimal(10, 3)
+  unitPriceOreAtEstimate Int
+  totalOre              Int
+  rotEligible           Boolean        @default(false)
+  snapshot              Json
+  createdAt             DateTime       @default(now())
 }
 
 model PropertyComponent {
@@ -742,6 +951,7 @@ model HouseReport {
   nextControl   String?
   qualityNotes  String?
   summary       Json?
+  estimates     ActionEstimate[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
