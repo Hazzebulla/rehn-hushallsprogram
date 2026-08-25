@@ -100,7 +100,8 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
                 <span>{report.address}</span>
                 <b>{houseReportStatusLabel(report.status)}</b>
                 <a className="buttonLink" href={`/husrapport?propertyId=${report.propertyId}`}>Visa</a>
-                <a className="buttonLink" href={`/admin/husstatus-form?propertyId=${report.propertyId}`}>Besiktning</a>
+                <a className="buttonLink" href={`/admin/inspection/${report.id}`}>Besiktning</a>
+                <a className="buttonLink" href={`/admin/husstatus-form?propertyId=${report.propertyId}`}>Formulär</a>
               </div>
             )) : (
               <div>

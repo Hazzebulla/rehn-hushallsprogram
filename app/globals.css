@@ -1669,6 +1669,327 @@ td {
   color: var(--muted);
 }
 
+.technicianInspection {
+  display: grid;
+  gap: 18px;
+}
+
+.inspectionHero {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.inspectionHero h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(2rem, 4vw, 3.5rem);
+}
+
+.inspectionHero p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.inspectionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.inspectionMeta span,
+.inspectionProgressRing,
+.inspectionStart {
+  border: 1px solid rgba(72, 214, 230, 0.42);
+  border-radius: 8px;
+  background: rgba(6, 20, 25, 0.86);
+}
+
+.inspectionMeta span {
+  padding: 8px 10px;
+  color: var(--cyan);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.inspectionProgressRing {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  text-align: center;
+}
+
+.inspectionProgressRing strong {
+  color: var(--text);
+  font-size: 2.5rem;
+}
+
+.inspectionProgressRing span {
+  color: var(--cyan);
+  font-weight: 900;
+}
+
+.inspectionLayout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.inspectionAreaRail {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.inspectionAreaRail button,
+.inspectionToolbar button,
+.inspectionChecks button,
+.customerVerifyList button,
+.multiButtons button,
+.segmented button,
+.productMatches button {
+  min-height: 46px;
+  border: 1px solid rgba(70, 158, 176, 0.42);
+  border-radius: 8px;
+  background: rgba(5, 15, 20, 0.82);
+  color: var(--text);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.inspectionAreaRail button {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+}
+
+.inspectionAreaRail button.active,
+.inspectionToolbar button:hover,
+.inspectionChecks button.active,
+.customerVerifyList button.active,
+.multiButtons button.active,
+.segmented button.active {
+  border-color: var(--cyan);
+  background: rgba(72, 214, 230, 0.16);
+  color: var(--cyan);
+}
+
+.inspectionAreaRail span,
+.inspectionItem span,
+.productMatches span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.inspectionWorkspace,
+.inspectionBottom {
+  display: grid;
+  gap: 14px;
+}
+
+.inspectionToolbar {
+  position: sticky;
+  z-index: 5;
+  top: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(70, 158, 176, 0.32);
+  border-radius: 8px;
+  background: rgba(2, 9, 13, 0.94);
+}
+
+.inspectionChecks {
+  display: grid;
+  gap: 10px;
+}
+
+.inspectionChecks div {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) repeat(4, minmax(0, 120px));
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(70, 158, 176, 0.22);
+  background: rgba(3, 11, 15, 0.44);
+}
+
+.inspectionColumns,
+.inspectionBottom {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.inspectionItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 10px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid rgba(70, 158, 176, 0.25);
+  border-radius: 8px;
+  background: rgba(3, 11, 15, 0.44);
+}
+
+.inspectionItem span {
+  grid-column: 1 / -1;
+}
+
+.inspectionItem b {
+  color: var(--cyan);
+}
+
+.risk-urgent {
+  border-color: rgba(239, 68, 68, 0.7);
+}
+
+.risk-action {
+  border-color: rgba(245, 184, 64, 0.7);
+}
+
+.inspectionForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.inspectionForm .panelTitle,
+.inspectionForm .wide,
+.multiButtons,
+.productMatches {
+  grid-column: 1 / -1;
+}
+
+.inspectionForm label,
+.multiButtons {
+  display: grid;
+  gap: 7px;
+  color: var(--cyan);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.inspectionForm input,
+.inspectionForm select,
+.inspectionForm textarea {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(70, 158, 176, 0.42);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  font: inherit;
+  text-transform: none;
+}
+
+.inspectionForm textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.photoButton input,
+.photoDrop input {
+  display: none;
+}
+
+.photoButton,
+.photoDrop {
+  place-items: center;
+  min-height: 58px;
+  border: 1px dashed var(--cyan);
+  border-radius: 8px;
+  background: rgba(72, 214, 230, 0.08);
+  color: var(--cyan) !important;
+  cursor: pointer;
+}
+
+.typePlateReview,
+.productMatches,
+.customerVerifyList,
+.customerQuickView {
+  display: grid;
+  gap: 10px;
+}
+
+.typePlateReview {
+  padding: 12px;
+  border: 1px solid rgba(245, 184, 64, 0.45);
+  border-radius: 8px;
+  background: rgba(245, 184, 64, 0.08);
+}
+
+.typePlateReview span {
+  color: var(--text);
+}
+
+.segmented,
+.multiButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.segmented button,
+.multiButtons button {
+  padding: 0 12px;
+}
+
+.productMatches button {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+}
+
+.customerVerifyList div {
+  display: grid;
+  grid-template-columns: 140px 1fr 120px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(70, 158, 176, 0.24);
+  border-radius: 8px;
+  background: rgba(3, 11, 15, 0.44);
+}
+
+.customerQuickView {
+  padding: clamp(18px, 4vw, 34px);
+  border: 1px solid rgba(72, 214, 230, 0.45);
+  border-radius: 8px;
+  background: #061419;
+}
+
+.customerQuickView h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.customerQuickView p {
+  color: var(--muted);
+}
+
+.inspectionToast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 30;
+  max-width: min(420px, calc(100vw - 36px));
+  padding: 12px 14px;
+  border: 1px solid rgba(72, 214, 230, 0.45);
+  border-radius: 8px;
+  background: rgba(2, 9, 13, 0.96);
+  color: var(--text);
+}
+
 .opsGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -6126,6 +6447,14 @@ td {
   .publishGrid,
   .opsGrid,
   .customerDeclarationPanel dl,
+  .inspectionHero,
+  .inspectionLayout,
+  .inspectionToolbar,
+  .inspectionChecks div,
+  .inspectionColumns,
+  .inspectionBottom,
+  .inspectionForm,
+  .customerVerifyList div,
   .auditList div,
   .systemChecks div,
   .submissionItem summary,

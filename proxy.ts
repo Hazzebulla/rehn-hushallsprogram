@@ -7,7 +7,9 @@ export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const publicPaths = new Set(["/", "/login", "/huscheck"]);
 
-  if (!publicPaths.has(pathname) && !hasSession) {
+  const isPublicPath = publicPaths.has(pathname) || pathname.startsWith("/husrapport/start/") || pathname.startsWith("/demo/");
+
+  if (!isPublicPath && !hasSession) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
