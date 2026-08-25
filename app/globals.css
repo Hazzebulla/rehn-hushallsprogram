@@ -1922,6 +1922,54 @@ td {
   cursor: pointer;
 }
 
+.inspectionPhotoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.inspectionPhotoGrid figure {
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid rgba(70, 158, 176, 0.32);
+  border-radius: 8px;
+  background: rgba(3, 11, 15, 0.62);
+}
+
+.inspectionPhotoGrid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.inspectionPhotoGrid figcaption {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px 10px;
+}
+
+.inspectionPhotoGrid strong,
+.inspectionPhotoGrid span,
+.inspectionPhotoGrid small,
+.inspectionEmptyPhotos {
+  overflow-wrap: anywhere;
+}
+
+.inspectionPhotoGrid strong {
+  color: var(--cyan);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.inspectionPhotoGrid span,
+.inspectionPhotoGrid small,
+.inspectionEmptyPhotos {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .typePlateReview,
 .productMatches,
 .customerVerifyList,

@@ -166,6 +166,38 @@ function matchProduct(query: string, products: InspectionProductOption[]) {
   }).slice(0, 8);
 }
 
+function formatPhotoDate(value: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" });
+}
+
+function InspectionPhotoGrid({
+  photos,
+  emptyText = "Inga bilder tillagda ännu.",
+}: {
+  photos: InspectionPhoto[];
+  emptyText?: string;
+}) {
+  if (!photos.length) return <p className="inspectionEmptyPhotos">{emptyText}</p>;
+
+  return (
+    <div className="inspectionPhotoGrid">
+      {photos.map((photo) => (
+        <figure key={photo.id}>
+          <img alt={photo.name || photo.category} src={photo.dataUrl} />
+          <figcaption>
+            <strong>{photo.category}</strong>
+            <span>{photo.name || "Bild"}</span>
+            <small>{formatPhotoDate(photo.createdAt)}</small>
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+}
+
 export default function TechnicianInspectionView({
   report,
   initialState,
@@ -191,6 +223,10 @@ export default function TechnicianInspectionView({
   const progress = inspectionProgress(state);
   const summary = inspectionSummary(state);
   const activeAreaState = state.areas[activeArea];
+  const activeAreaPhotos = useMemo(
+    () => state.photos.filter((photo) => photo.areaId === activeArea),
+    [activeArea, state.photos],
+  );
   const productMatches = matchProduct(productQuery, productOptions);
 
   function persist(next: TechnicianInspectionState, actionMessage = "Sparar…") {
@@ -448,7 +484,12 @@ export default function TechnicianInspectionView({
                 <article className="portalPanel">
                   <h3>Installationer</h3>
                   {state.installations.filter((item) => item.areaId === activeArea).map((item) => (
-                    <div className="inspectionItem" key={item.id}><strong>{item.type}</strong><span>{item.manufacturer} {item.model}</span><b>{item.status}</b></div>
+                    <div className="inspectionItem" key={item.id}>
+                      <strong>{item.type}</strong>
+                      <span>{item.manufacturer} {item.model}</span>
+                      <b>{item.status}</b>
+                      {item.photos.length ? <small>{item.photos.length} bilder sparade</small> : null}
+                    </div>
                   ))}
                 </article>
                 <article className="portalPanel">
@@ -457,6 +498,14 @@ export default function TechnicianInspectionView({
                     <div className={`inspectionItem risk-${item.riskLevel}`} key={item.id}><strong>{item.object}</strong><span>{item.types.join(", ")}</span><b>{riskLabels[item.riskLevel]}</b></div>
                   ))}
                 </article>
+              </section>
+
+              <section className="portalPanel">
+                <div className="panelTitle">
+                  <h3>Bilder i området</h3>
+                  <span>{activeAreaPhotos.length} bilder</span>
+                </div>
+                <InspectionPhotoGrid photos={activeAreaPhotos} />
               </section>
             </>
           ) : null}
@@ -479,6 +528,9 @@ export default function TechnicianInspectionView({
               <label className="wide">Kommentar<textarea value={draftInstallation.comment} onChange={(event) => setDraftInstallation({ ...draftInstallation, comment: event.target.value })} /></label>
               <label className="photoButton">Bild<input accept="image/*" capture="environment" onChange={(event) => addInstallationPhoto(event.target.files, "Installation")} type="file" /></label>
               <label className="photoButton">Läs typskylt<input accept="image/*" capture="environment" onChange={(event) => addInstallationPhoto(event.target.files, "Typskylt")} type="file" /></label>
+              <div className="wide">
+                <InspectionPhotoGrid photos={draftInstallation.photos} emptyText="Ta en bild på installationen eller typskylten." />
+              </div>
               {draftInstallation.typePlate ? (
                 <div className="typePlateReview wide">
                   <strong>Vi hittade följande information</strong>
@@ -528,6 +580,9 @@ export default function TechnicianInspectionView({
               <div className="panelTitle"><h3>Lägg till bild</h3><span>Kopplas till aktuellt område</span></div>
               <label>Kategori<select value={photoCategory} onChange={(event) => setPhotoCategory(event.target.value as InspectionPhoto["category"])}>{["Översikt", "Installation", "Produkt", "Typskylt", "Brist", "Före", "Övrigt"].map((item) => <option key={item}>{item}</option>)}</select></label>
               <label className="photoDrop wide">Ta eller välj bilder<input accept="image/*" capture="environment" multiple onChange={(event) => addPhotos(event.target.files)} type="file" /></label>
+              <div className="wide">
+                <InspectionPhotoGrid photos={activeAreaPhotos} />
+              </div>
             </section>
           ) : null}
         </section>
