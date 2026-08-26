@@ -43,6 +43,7 @@ type ProductOption = {
   expectedLifetimeMaxYears: number | null;
   replacementPriceMinSek: number | null;
   replacementPriceMaxSek: number | null;
+  latestSupplierPrice?: number | null;
   sourceUrl: string;
   manualUrl: string;
   wiringDiagramUrl: string;
@@ -53,6 +54,7 @@ type ProductOption = {
     supplierName: string;
     calculationGroup: string | null;
     unit: string | null;
+    latestPrice?: { price?: number | null } | null;
   }[];
 };
 
@@ -764,6 +766,41 @@ function SignaturePad({
   );
 }
 
+function dedupeProducts(products: ProductOption[]) {
+  const seen = new Set<string>();
+  return products.filter((product) => {
+    if (seen.has(product.id)) return false;
+    seen.add(product.id);
+    return true;
+  });
+}
+
+function apiProductToOption(product: Partial<ProductOption> & {
+  supplierProducts?: { latestPrice?: { price?: number | null } | null }[];
+}): ProductOption {
+  return {
+    id: String(product.id ?? ""),
+    category: String(product.category ?? "Övrigt"),
+    manufacturer: String(product.manufacturer ?? ""),
+    rskNumber: String(product.rskNumber ?? ""),
+    productName: String(product.productName ?? ""),
+    modelName: String(product.modelName ?? product.productName ?? ""),
+    unit: String(product.unit ?? "st"),
+    systemType: String(product.systemType ?? ""),
+    technicalData: String(product.technicalData ?? ""),
+    expectedLifetimeMinYears: product.expectedLifetimeMinYears ?? null,
+    expectedLifetimeMaxYears: product.expectedLifetimeMaxYears ?? null,
+    replacementPriceMinSek: product.replacementPriceMinSek ?? null,
+    replacementPriceMaxSek: product.replacementPriceMaxSek ?? null,
+    latestSupplierPrice: product.supplierProducts?.find((supplierProduct) => supplierProduct.latestPrice?.price)?.latestPrice?.price ?? null,
+    sourceUrl: String(product.sourceUrl ?? ""),
+    manualUrl: String(product.manualUrl ?? ""),
+    wiringDiagramUrl: String(product.wiringDiagramUrl ?? ""),
+    dataQuality: String(product.dataQuality ?? "supplier_source"),
+    supplierProducts: product.supplierProducts as ProductOption["supplierProducts"],
+  };
+}
+
 function ComponentRegisterTable({
   rows,
   products,
@@ -773,6 +810,8 @@ function ComponentRegisterTable({
   products: ProductOption[];
   onChange: (rows: ComponentRegisterRow[]) => void;
 }) {
+  const [remoteProductsByRow, setRemoteProductsByRow] = useState<Record<number, ProductOption[]>>({});
+
   function updateRow(index: number, key: keyof ComponentRegisterRow, value: string) {
     onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row)));
   }
@@ -806,8 +845,17 @@ function ComponentRegisterTable({
   }
 
   function productsFor(row: ComponentRegisterRow) {
+    return productsForRow(row, -1);
+  }
+
+  function productsForRow(row: ComponentRegisterRow, index: number) {
     const query = `${row.model}`.trim().toLowerCase();
-    return products
+    const combinedProducts = dedupeProducts([
+      ...products,
+      ...(remoteProductsByRow[index] ?? []),
+    ]);
+
+    return combinedProducts
       .filter((product) => (!row.category || product.category === row.category) && (!row.brand || product.manufacturer === row.brand))
       .filter((product) => {
         if (!query) return true;
@@ -823,13 +871,15 @@ function ComponentRegisterTable({
   function productPrice(product: ProductOption) {
     const min = product.replacementPriceMinSek;
     const max = product.replacementPriceMaxSek;
-    if (!min && !max) return "";
+    if (!min && !max) return product.latestSupplierPrice ? String(Math.round(product.latestSupplierPrice)) : "";
     if (min && max && min !== max) return String(Math.round((min + max) / 2));
-    return String(min ?? max ?? "");
+    return String(min ?? max ?? product.latestSupplierPrice ?? "");
   }
 
   function selectProduct(index: number, productId: string) {
-    const product = products.find((item) => item.id === productId);
+    const product = productsForRow(rows[index], index).find((item) => item.id === productId)
+      ?? products.find((item) => item.id === productId)
+      ?? Object.values(remoteProductsByRow).flat().find((item) => item.id === productId);
     if (!product) {
       updateRow(index, "productModelId", "");
       return;
@@ -849,6 +899,33 @@ function ComponentRegisterTable({
       };
     }));
   }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      rows.forEach((row, index) => {
+        const query = row.model.trim();
+        if (query.length < 2) return;
+
+        fetch(`/api/products?q=${encodeURIComponent(query)}&take=30`, { signal: controller.signal })
+          .then((response) => response.ok ? response.json() : { products: [] })
+          .then((data) => {
+            const remoteProducts = Array.isArray(data.products) ? data.products.map(apiProductToOption) : [];
+            setRemoteProductsByRow((current) => ({ ...current, [index]: remoteProducts }));
+          })
+          .catch((error) => {
+            if ((error as Error).name !== "AbortError") {
+              setRemoteProductsByRow((current) => ({ ...current, [index]: [] }));
+            }
+          });
+      });
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [rows.map((row) => row.model).join("|")]);
 
   return (
     <div className="componentFormTable">
@@ -888,7 +965,7 @@ function ComponentRegisterTable({
             placeholder="Sök modell"
           />
           <datalist id={`models-${index}`}>
-            {productsFor(row).map((product) => (
+            {productsForRow(row, index).map((product) => (
               <option key={product.id} value={product.productName || product.modelName}>
                 {product.rskNumber ? `RSK ${product.rskNumber} - ` : ""}{product.manufacturer}
               </option>
@@ -897,7 +974,7 @@ function ComponentRegisterTable({
           </datalist>
           <select value={row.productModelId ?? ""} onChange={(event) => selectProduct(index, event.target.value)}>
             <option value="">Annan/okänd modell</option>
-            {productsFor(row).map((product) => (
+            {productsForRow(row, index).map((product) => (
               <option key={product.id} value={product.id}>
                 {product.rskNumber ? `RSK ${product.rskNumber} - ` : ""}{product.productName || product.modelName}
               </option>
@@ -1169,12 +1246,22 @@ export default function HusstatusFormView({
   }
 
   async function saveDraftNow() {
-    if (!databaseOnline || !propertyId || saveableCount === 0) {
-      setMessage(saveableCount === 0 ? "Inget är ifyllt ännu." : "Utkastet kunde inte sparas.");
+    if (!propertyId || saveableCount === 0) {
+      setMessage(saveableCount === 0 ? "Inget är ifyllt ännu." : "Välj fastighet först.");
       return false;
     }
 
     const payload = JSON.stringify(answers);
+    window.localStorage.setItem(storageKey, payload);
+
+    if (!databaseOnline) {
+      lastSavedPayloadRef.current = payload;
+      const time = savedTimeLabel();
+      setLastSavedAt(time);
+      setMessage(`Sparat lokalt kl ${time}. Databasen krävs för att slutföra rapporten.`);
+      return true;
+    }
+
     const formData = new FormData();
     formData.set("propertyId", propertyId);
     formData.set("answers", payload);
@@ -1184,10 +1271,9 @@ export default function HusstatusFormView({
       const time = savedTimeLabel();
       setLastSavedAt(time);
       setMessage(`Sparat kl ${time}.`);
-      window.localStorage.setItem(storageKey, payload);
       return true;
     }
-    setMessage(result.message);
+    setMessage(`${result.message} Utkastet finns sparat lokalt i den här webbläsaren.`);
     return false;
   }
 
@@ -1387,6 +1473,16 @@ export default function HusstatusFormView({
     });
   }
 
+  function changeProperty(nextPropertyId: string) {
+    if (!nextPropertyId || nextPropertyId === propertyId) return;
+    setPropertyId(nextPropertyId);
+    hydratedRef.current = false;
+    lastSavedPayloadRef.current = "";
+    const url = new URL(window.location.href);
+    url.searchParams.set("propertyId", nextPropertyId);
+    window.location.href = url.toString();
+  }
+
   function previewReport() {
     startTransition(async () => {
       const saved = await saveDraftNow();
@@ -1446,14 +1542,14 @@ export default function HusstatusFormView({
       <section className="portalPanel formToolbar">
         <label>
           Fastighet
-          <select disabled={!databaseOnline || isPending} value={propertyId} onChange={(event) => setPropertyId(event.target.value)}>
+          <select disabled={isPending} value={propertyId} onChange={(event) => changeProperty(event.target.value)}>
             {properties.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
           </select>
         </label>
         <button type="button" onClick={() => setActiveSection(1)}>{formButtonLabel}</button>
         <button disabled={!propertyId} onClick={autofillCustomerInfo} type="button">Autofyll kundinfo</button>
-        <button disabled={!databaseOnline || isPending || saveableCount === 0} onClick={saveNow} type="button">Spara utkast</button>
-        <button disabled={!databaseOnline || isPending || saveableCount === 0} onClick={() => saveReview()} type="button">Spara genomgång</button>
+        <button disabled={isPending || saveableCount === 0} onClick={saveNow} type="button">Spara utkast</button>
+        <button disabled={isPending || saveableCount === 0} onClick={() => saveReview()} type="button">Spara genomgång</button>
         <button disabled={isPending || !databaseOnline} onClick={previewReport} type="button">Förhandsgranska rapport</button>
         <button disabled={!databaseOnline || isPending || !propertyId} onClick={complete}>
           Slutför och skapa husrapport

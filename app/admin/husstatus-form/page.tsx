@@ -50,7 +50,7 @@ async function getFormData(selectedPropertyId?: string) {
           },
         },
         orderBy: [{ category: "asc" }, { modelName: "asc" }],
-        take: 2500,
+        take: 250,
       }),
     ]);
     const propertyId = selectedPropertyId || properties[0]?.id;
