@@ -7,6 +7,8 @@ import type { ProductDataQuality } from "@prisma/client";
 
 export type ProductModelVm = {
   id: string;
+  rskNumber: string;
+  productName: string;
   manufacturer: string;
   category: string;
   modelName: string;
@@ -53,7 +55,7 @@ export default function ProductsView({
     const normalized = query.trim().toLowerCase();
     if (!normalized) return products;
     return products.filter((product) =>
-      `${product.category} ${product.manufacturer} ${product.modelName} ${product.systemType}`.toLowerCase().includes(normalized),
+      `${product.category} ${product.manufacturer} ${product.modelName} ${product.productName} ${product.rskNumber} ${product.systemType}`.toLowerCase().includes(normalized),
     );
   }, [products, query]);
 
@@ -221,8 +223,8 @@ export default function ProductsView({
             <article className={!product.active ? "inactive" : ""} key={product.id}>
               <div>
                 <span>{product.category}</span>
-                <strong>{product.manufacturer} {product.modelName}</strong>
-                <small>{product.systemType || "Systemtyp saknas"}</small>
+                <strong>{product.productName || `${product.manufacturer} ${product.modelName}`}</strong>
+                <small>{product.rskNumber ? `RSK ${product.rskNumber}` : product.systemType || "Systemtyp saknas"}</small>
               </div>
               <div>
                 <span>Tekniska data</span>
@@ -237,6 +239,7 @@ export default function ProductsView({
               <div>
                 <span>Pris</span>
                 <strong>{product.replacementPrice || "Ej angivet"}</strong>
+                <a href={`/admin/products/${product.id}`}>Detalj</a>
                 {product.sourceUrl ? <a href={product.sourceUrl} target="_blank" rel="noreferrer">Källa</a> : <small>Källa saknas</small>}
                 {product.manualUrl ? <a href={product.manualUrl} target="_blank" rel="noreferrer">Manual</a> : null}
                 {product.wiringDiagramUrl ? <a href={product.wiringDiagramUrl} target="_blank" rel="noreferrer">Elschema</a> : null}

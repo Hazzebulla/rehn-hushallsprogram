@@ -39,6 +39,8 @@ async function getProductsData(): Promise<{
       databaseOnline: true,
       products: products.map((product) => ({
         id: product.id,
+        rskNumber: product.rskNumber ?? "",
+        productName: product.productName ?? "",
         manufacturer: product.manufacturer.name,
         category: product.category,
         modelName: product.modelName,
@@ -71,6 +73,8 @@ async function getProductsData(): Promise<{
       products: [
         {
           id: "LOCAL-IVT-X15",
+          rskNumber: "",
+          productName: "",
           manufacturer: "IVT",
           category: "Värmepump",
           modelName: "PremiumLine X15",

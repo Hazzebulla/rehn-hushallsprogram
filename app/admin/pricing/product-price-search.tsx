@@ -137,6 +137,10 @@ export default function ProductPriceSearch() {
           {price?.priceExpired ? (
             <p className="databaseNotice">Varning: priset kommer från en utgången Dahl-prislista. Nyare prislista rekommenderas.</p>
           ) : null}
+          <div className="portalActions">
+            <a className="buttonLink" href={`/admin/products/${selectedProduct.id}`}>Öppna produktdetalj</a>
+            <a className="buttonLink" href="/admin/husstatus-form">Använd i Husrapport</a>
+          </div>
         </article>
       ) : null}
 
