@@ -230,6 +230,43 @@ async function ensureDraftSubmission(propertyId: string) {
   });
 }
 
+async function resolveSubmissionTarget(propertyId: string, reportId?: string) {
+  if (!reportId) {
+    const property = await prisma.property.findFirst({ where: { id: propertyId, companyId: COMPANY_ID }, include: { customer: true } });
+    if (!property) return { ok: false as const, message: "Fastigheten finns inte i databasen." };
+    const draft = await ensureDraftSubmission(property.id);
+    return { ok: true as const, property, submission: draft, report: null };
+  }
+
+  const report = await prisma.houseReport.findFirst({
+    where: { id: reportId, companyId: COMPANY_ID },
+    include: {
+      property: { include: { customer: true } },
+      submission: { include: { inspection: true, version: true } },
+    },
+  });
+  if (!report) return { ok: false as const, message: "Rapporten hittades inte. Ingen annan kunddata visas." };
+  if (propertyId && propertyId !== report.propertyId) {
+    return { ok: false as const, message: "Rapport och fastighet matchar inte. Sparning stoppad för att skydda kunddata." };
+  }
+  return { ok: true as const, property: report.property, submission: report.submission, report };
+}
+
+function enforceTargetIdentityAnswers(answers: Answers, target: {
+  address: string;
+  propertyNo: string | null;
+  buildYear: number | null;
+  customer: { name: string; phone: string | null; invoiceEmail: string | null };
+}): Answers {
+  return {
+    ...answers,
+    customer_name: target.customer.name,
+    contact: [target.customer.phone, target.customer.invoiceEmail].filter(Boolean).join(" / "),
+    property_address: [target.propertyNo, target.address].filter(Boolean).join(" / "),
+    build_year: target.buildYear?.toString() ?? "",
+  };
+}
+
 async function nextReportNo() {
   const year = new Date().getFullYear();
   const count = await prisma.houseReport.count({
@@ -474,18 +511,19 @@ async function createComponentsFromRegister(propertyId: string, register?: Answe
 
 export async function autosaveHusstatusDraftAction(formData: FormData) {
   const propertyId = String(formData.get("propertyId") ?? "");
+  const reportId = String(formData.get("reportId") ?? "");
   const payload = String(formData.get("answers") ?? "{}");
 
-  if (!propertyId) return { ok: false, message: "Välj fastighet." };
+  if (!propertyId && !reportId) return { ok: false, message: "Välj fastighet." };
 
   try {
-    const answers = JSON.parse(payload) as Answers;
-    const property = await prisma.property.findFirst({ where: { id: propertyId, companyId: COMPANY_ID } });
-    if (!property) return { ok: false, message: "Fastigheten finns inte i databasen." };
+    const parsedAnswers = JSON.parse(payload) as Answers;
+    const target = await resolveSubmissionTarget(propertyId, reportId || undefined);
+    if (!target.ok) return { ok: false, message: target.message };
+    const answers = reportId ? enforceTargetIdentityAnswers(parsedAnswers, target.property) : parsedAnswers;
 
-    const draft = await ensureDraftSubmission(property.id);
     const entries = filledEntries(answers);
-    await replaceSubmissionAnswers(draft.id, entries);
+    await replaceSubmissionAnswers(target.submission.id, entries);
 
     await prisma.auditLog.create({
       data: {
@@ -493,13 +531,13 @@ export async function autosaveHusstatusDraftAction(formData: FormData) {
         actorId: DEMO_ACTOR_ID,
         action: "AUTOSAVE_RVM_HUSSTATUS_DRAFT",
         entity: "FormSubmission",
-        entityId: draft.id,
-        after: { propertyId: property.id, fields: entries.length },
+        entityId: target.submission.id,
+        after: { propertyId: target.property.id, reportId: target.report?.id ?? null, fields: entries.length },
       },
     });
 
     revalidatePath("/husrapport");
-    return { ok: true, submissionId: draft.id, message: `Utkast autosparat i databasen (${entries.length} fält).` };
+    return { ok: true, submissionId: target.submission.id, message: `Utkast autosparat i databasen (${entries.length} fält).` };
   } catch {
     return { ok: false, message: "Utkastet kunde inte autosparas." };
   }
@@ -507,14 +545,17 @@ export async function autosaveHusstatusDraftAction(formData: FormData) {
 
 export async function completeHusstatusFormAction(formData: FormData) {
   const propertyId = String(formData.get("propertyId") ?? "");
+  const reportId = String(formData.get("reportId") ?? "");
   const payload = String(formData.get("answers") ?? "{}");
 
-  if (!propertyId) return { ok: false, message: "Välj fastighet." };
+  if (!propertyId && !reportId) return { ok: false, message: "Välj fastighet." };
 
   try {
-    const answers = JSON.parse(payload) as Answers;
-    const property = await prisma.property.findFirst({ where: { id: propertyId, companyId: COMPANY_ID } });
-    if (!property) return { ok: false, message: "Fastigheten finns inte i databasen." };
+    const parsedAnswers = JSON.parse(payload) as Answers;
+    const target = await resolveSubmissionTarget(propertyId, reportId || undefined);
+    if (!target.ok) return { ok: false, message: target.message };
+    const { property } = target;
+    const answers = reportId ? enforceTargetIdentityAnswers(parsedAnswers, property) : parsedAnswers;
 
     const entries = filledEntries(answers);
     const validationAnswers = activeAnswersForValidation(answers);
@@ -540,18 +581,17 @@ export async function completeHusstatusFormAction(formData: FormData) {
       };
     }
 
-    const draft = await ensureDraftSubmission(property.id);
-    await replaceSubmissionAnswers(draft.id, entries);
+    await replaceSubmissionAnswers(target.submission.id, entries);
 
-    if (draft.inspectionId) {
+    if (target.submission.inspectionId) {
       await prisma.inspection.update({
-        where: { id: draft.inspectionId },
+        where: { id: target.submission.inspectionId },
         data: { status: "COMPLETED", performedAt: new Date() },
       });
     }
 
     const submission = await prisma.formSubmission.update({
-      where: { id: draft.id },
+      where: { id: target.submission.id },
       data: { status: "SUBMITTED", signedAt: new Date() },
       include: { version: true },
     });
@@ -577,28 +617,48 @@ export async function completeHusstatusFormAction(formData: FormData) {
     const createdComponents = isSectionActive(answers, 19)
       ? await createComponentsFromRegister(property.id, answers.component_register_rows ?? answers.component_register)
       : 0;
-    const report = await prisma.houseReport.create({
-      data: {
-        companyId: COMPANY_ID,
-        propertyId: property.id,
-        submissionId: submission.id,
-        reportNo: await nextReportNo(),
-        status: "READY_FOR_REVIEW",
-        formVersion: submission.version.version,
-        reportVersion: 1,
-        performedAt: new Date(),
-        performedBy: typeof answers.rvm_signer === "string" ? answers.rvm_signer : null,
-        reportOwner: typeof answers.report_owner_deadline === "string" ? answers.report_owner_deadline : null,
-        nextControl: typeof answers.next_control === "string" ? answers.next_control : null,
-        summary: {
-          completedFields: entries.length,
-          activeFields: activeFieldCount(answers),
-          totalFields: rvmFieldCount,
-          sectionStatuses: sectionStatuses(answers),
-          source: "RVM Husstatus-formulär",
-        },
-      },
-    });
+    const report = target.report
+      ? await prisma.houseReport.update({
+          where: { id: target.report.id },
+          data: {
+            status: "READY_FOR_REVIEW",
+            formVersion: submission.version.version,
+            performedAt: new Date(),
+            performedBy: typeof answers.rvm_signer === "string" ? answers.rvm_signer : null,
+            reportOwner: typeof answers.report_owner_deadline === "string" ? answers.report_owner_deadline : null,
+            nextControl: typeof answers.next_control === "string" ? answers.next_control : null,
+            summary: {
+              completedFields: entries.length,
+              activeFields: activeFieldCount(answers),
+              totalFields: rvmFieldCount,
+              sectionStatuses: sectionStatuses(answers),
+              source: "RVM Husstatus-formulär",
+              updatedExistingReport: true,
+            },
+          },
+        })
+      : await prisma.houseReport.create({
+          data: {
+            companyId: COMPANY_ID,
+            propertyId: property.id,
+            submissionId: submission.id,
+            reportNo: await nextReportNo(),
+            status: "READY_FOR_REVIEW",
+            formVersion: submission.version.version,
+            reportVersion: 1,
+            performedAt: new Date(),
+            performedBy: typeof answers.rvm_signer === "string" ? answers.rvm_signer : null,
+            reportOwner: typeof answers.report_owner_deadline === "string" ? answers.report_owner_deadline : null,
+            nextControl: typeof answers.next_control === "string" ? answers.next_control : null,
+            summary: {
+              completedFields: entries.length,
+              activeFields: activeFieldCount(answers),
+              totalFields: rvmFieldCount,
+              sectionStatuses: sectionStatuses(answers),
+              source: "RVM Husstatus-formulär",
+            },
+          },
+        });
 
     await prisma.auditLog.create({
       data: {

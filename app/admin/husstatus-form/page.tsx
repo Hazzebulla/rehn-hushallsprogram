@@ -25,7 +25,21 @@ function lightenStoredPhotos(value: unknown): unknown {
   return Object.fromEntries(Object.entries(record).map(([key, item]) => [key, lightenStoredPhotos(item)]));
 }
 
-async function getFormData(selectedPropertyId?: string) {
+function reportIdentityAnswers(property: {
+  address: string;
+  propertyNo: string | null;
+  buildYear: number | null;
+  customer: { name: string; phone: string | null; invoiceEmail: string | null };
+}) {
+  return {
+    customer_name: property.customer.name,
+    contact: [property.customer.phone, property.customer.invoiceEmail].filter(Boolean).join(" / "),
+    property_address: [property.propertyNo, property.address].filter(Boolean).join(" / "),
+    build_year: property.buildYear?.toString() ?? "",
+  };
+}
+
+async function getFormData(selectedPropertyId?: string, selectedReportId?: string) {
   try {
     const [properties, products] = await Promise.all([
       prisma.property.findMany({
@@ -53,8 +67,41 @@ async function getFormData(selectedPropertyId?: string) {
         take: 250,
       }),
     ]);
-    const propertyId = selectedPropertyId || properties[0]?.id;
-    const draftSubmission = propertyId
+    const selectedReport = selectedReportId
+      ? await prisma.houseReport.findFirst({
+          where: { id: selectedReportId, companyId: "org_rehn_vvs" },
+          include: {
+            property: { include: { customer: true } },
+            submission: { include: { answers: true } },
+          },
+        })
+      : null;
+    if (selectedReportId && !selectedReport) {
+      return {
+        databaseOnline: true,
+        initialReportId: selectedReportId,
+        initialReportNo: "",
+        initialSubmissionId: "",
+        initialPropertyId: "",
+        initialStatus: "REPORT_NOT_FOUND",
+        initialAnswers: {},
+        properties: properties.map((property) => ({
+          id: property.id,
+          label: `${property.customer.name} - ${property.propertyNo ?? property.address}`,
+          customerName: property.customer.name,
+          customerPhone: property.customer.phone ?? "",
+          customerEmail: property.customer.invoiceEmail ?? "",
+          customerIdentifier: property.customer.orgOrPersonNo ?? "",
+          propertyNo: property.propertyNo ?? "",
+          address: property.address,
+          propertyType: property.type,
+          buildYear: property.buildYear,
+        })),
+        products: [],
+      };
+    }
+    const propertyId = selectedReport?.propertyId ?? selectedPropertyId ?? properties[0]?.id;
+    const draftSubmission = !selectedReport && propertyId
       ? await prisma.formSubmission.findFirst({
           where: {
             companyId: "org_rehn_vvs",
@@ -65,7 +112,7 @@ async function getFormData(selectedPropertyId?: string) {
           orderBy: { updatedAt: "desc" },
         })
       : null;
-    const completedSubmission = propertyId
+    const completedSubmission = !selectedReport && propertyId
       ? await prisma.formSubmission.findFirst({
           where: {
             companyId: "org_rehn_vvs",
@@ -76,15 +123,21 @@ async function getFormData(selectedPropertyId?: string) {
           orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
         })
       : null;
-    const latestSubmission = draftSubmission ?? completedSubmission;
+    const latestSubmission = selectedReport?.submission ?? draftSubmission ?? completedSubmission;
 
     return {
       databaseOnline: true,
+      initialReportId: selectedReport?.id ?? "",
+      initialReportNo: selectedReport?.reportNo ?? "",
+      initialSubmissionId: latestSubmission?.id ?? "",
       initialPropertyId: propertyId,
       initialStatus: latestSubmission?.status ?? "NOT_STARTED",
-      initialAnswers: Object.fromEntries(
-        latestSubmission?.answers.map((answer) => [answer.fieldKey, lightenStoredPhotos(answerValue(answer.value))]) ?? [],
-      ) as Record<string, unknown>,
+      initialAnswers: {
+        ...Object.fromEntries(
+          latestSubmission?.answers.map((answer) => [answer.fieldKey, lightenStoredPhotos(answerValue(answer.value))]) ?? [],
+        ),
+        ...(selectedReport ? reportIdentityAnswers(selectedReport.property) : {}),
+      } as Record<string, unknown>,
       properties: properties.map((property) => ({
         id: property.id,
         label: `${property.customer.name} - ${property.propertyNo ?? property.address}`,
@@ -121,6 +174,9 @@ async function getFormData(selectedPropertyId?: string) {
   } catch {
     return {
       databaseOnline: false,
+      initialReportId: selectedReportId ?? "",
+      initialReportNo: "",
+      initialSubmissionId: "",
       initialPropertyId: selectedPropertyId,
       initialStatus: "NOT_STARTED",
       initialAnswers: {},
@@ -144,10 +200,10 @@ async function getFormData(selectedPropertyId?: string) {
 export default async function HusstatusFormPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ propertyId?: string }>;
+  searchParams?: Promise<{ propertyId?: string; reportId?: string }>;
 }) {
   const params = await searchParams;
-  const data = await getFormData(params?.propertyId);
+  const data = await getFormData(params?.propertyId, params?.reportId);
 
   return (
     <main className="adminShell">

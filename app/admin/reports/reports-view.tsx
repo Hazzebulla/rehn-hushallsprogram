@@ -117,8 +117,9 @@ export default function ReportsView({
                   )}
                 </div>
                 <div className="reportActions">
-                  <a className="buttonLink" href={`/husrapport?propertyId=${report.propertyId}`}>Visa</a>
+                  <a className="buttonLink" href={`/husrapport?reportId=${report.id}`}>Visa</a>
                   <a className="buttonLink" href={`/admin/inspection/${report.id}`}>Besiktning</a>
+                  <a className="buttonLink" href={`/admin/husstatus-form?reportId=${report.id}`}>Formulär</a>
                   <button className="buttonLink" disabled={loadingReportId === report.id} onClick={() => toggleCustomerAnswers(report.id)} type="button">
                     {isOpen ? "Dölj kundsvar" : loadingReportId === report.id ? "Hämtar..." : "Visa kundsvar"}
                   </button>

@@ -1175,6 +1175,9 @@ export default function HusstatusFormView({
   sections,
   fieldCount,
   initialPropertyId,
+  initialReportId = "",
+  initialReportNo = "",
+  initialSubmissionId = "",
   initialAnswers = {},
   initialStatus = "NOT_STARTED",
 }: {
@@ -1184,10 +1187,14 @@ export default function HusstatusFormView({
   sections: RvmSection[];
   fieldCount: number;
   initialPropertyId?: string;
+  initialReportId?: string;
+  initialReportNo?: string;
+  initialSubmissionId?: string;
   initialAnswers?: Record<string, unknown>;
   initialStatus?: string;
 }) {
   const [propertyId, setPropertyId] = useState(initialPropertyId || properties[0]?.id || "");
+  const lockedReportId = initialReportId || "";
   const reportUrl = propertyId ? `/husrapport?propertyId=${propertyId}` : "/husrapport";
   const [answers, setAnswers] = useState<Answers>(initialAnswers as Answers);
   const [registerPaste, setRegisterPaste] = useState(String(initialAnswers.component_register ?? ""));
@@ -1200,7 +1207,9 @@ export default function HusstatusFormView({
   const [isPending, startTransition] = useTransition();
   const hydratedRef = useRef(false);
   const lastSavedPayloadRef = useRef("");
-  const storageKey = `rvm-husstatus-draft-${propertyId || "none"}`;
+  const storageKey = lockedReportId
+    ? `rvm-husstatus-report-${lockedReportId}`
+    : `rvm-husstatus-draft-${propertyId || "none"}`;
 
   const answeredCount = useMemo(
     () => Object.entries(answers).filter(([key, value]) =>
@@ -1264,6 +1273,7 @@ export default function HusstatusFormView({
 
     const formData = new FormData();
     formData.set("propertyId", propertyId);
+    formData.set("reportId", lockedReportId);
     formData.set("answers", payload);
     const result = await autosaveHusstatusDraftAction(formData);
     if (result.ok) {
@@ -1279,9 +1289,9 @@ export default function HusstatusFormView({
 
   useEffect(() => {
     if (!propertyId) return;
-    const saved = window.localStorage.getItem(storageKey);
+    const saved = lockedReportId ? null : window.localStorage.getItem(storageKey);
     const loadedAnswers = lightenStoredPhotos(saved ? JSON.parse(saved) : initialAnswers) as Answers;
-    const nextAnswers = selectedProperty
+    const nextAnswers = selectedProperty && !lockedReportId
       ? mergeAutofillAnswers(loadedAnswers, propertyAutofillAnswers(selectedProperty))
       : loadedAnswers;
     const loadedPayload = JSON.stringify(loadedAnswers);
@@ -1291,7 +1301,7 @@ export default function HusstatusFormView({
     window.localStorage.setItem(storageKey, nextPayload);
     lastSavedPayloadRef.current = loadedPayload === nextPayload ? nextPayload : loadedPayload;
     hydratedRef.current = true;
-  }, [propertyId, storageKey, initialAnswers, selectedProperty]);
+  }, [propertyId, storageKey, initialAnswers, selectedProperty, lockedReportId]);
 
   useEffect(() => {
     if (!propertyId || !hydratedRef.current) return;
@@ -1302,6 +1312,7 @@ export default function HusstatusFormView({
     const timer = window.setTimeout(() => {
       const formData = new FormData();
       formData.set("propertyId", propertyId);
+      formData.set("reportId", lockedReportId);
       formData.set("answers", payload);
       startTransition(async () => {
         const result = await autosaveHusstatusDraftAction(formData);
@@ -1317,7 +1328,7 @@ export default function HusstatusFormView({
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, [answers, saveableCount, databaseOnline, propertyId, storageKey]);
+  }, [answers, saveableCount, databaseOnline, propertyId, storageKey, lockedReportId]);
 
   function setStructuredAnswer(key: string, value: AnswerValue) {
     setAnswers((current) => ({ ...current, [key]: value }));
@@ -1458,6 +1469,7 @@ export default function HusstatusFormView({
     setReviewMode("READY");
     const formData = new FormData();
     formData.set("propertyId", propertyId);
+    formData.set("reportId", lockedReportId);
     formData.set("answers", JSON.stringify(answers));
 
     startTransition(async () => {
@@ -1479,6 +1491,7 @@ export default function HusstatusFormView({
     hydratedRef.current = false;
     lastSavedPayloadRef.current = "";
     const url = new URL(window.location.href);
+    url.searchParams.delete("reportId");
     url.searchParams.set("propertyId", nextPropertyId);
     window.location.href = url.toString();
   }
@@ -1503,6 +1516,7 @@ export default function HusstatusFormView({
           <div className={`persistenceNote ${databaseOnline ? "online" : "offline"}`}>
             {isPending ? "Sparar..." : message}
             {lastSavedAt && !isPending ? <small>Senast sparat kl {lastSavedAt}</small> : null}
+            {lockedReportId ? <small>Rapport: {initialReportNo || lockedReportId} · Submission: {initialSubmissionId || "saknas"}</small> : null}
           </div>
         </div>
         <div className="portalActions">
@@ -1512,6 +1526,13 @@ export default function HusstatusFormView({
       </header>
 
       <section className="adminKpis">
+        {lockedReportId ? (
+          <article className="portalPanel reportIdentityPanel">
+            <span>Kund</span>
+            <strong>{selectedProperty?.customerName || String(answers.customer_name || "Kund saknas")}</strong>
+            <small>{selectedProperty?.address || String(answers.property_address || "Fastighet saknas")}</small>
+          </article>
+        ) : null}
         <article className="portalPanel">
           <span>Avsnitt</span>
           <strong>{sections.length}</strong>
@@ -1542,12 +1563,13 @@ export default function HusstatusFormView({
       <section className="portalPanel formToolbar">
         <label>
           Fastighet
-          <select disabled={isPending} value={propertyId} onChange={(event) => changeProperty(event.target.value)}>
+          <select disabled={isPending || !!lockedReportId} value={propertyId} onChange={(event) => changeProperty(event.target.value)}>
+            {!propertyId ? <option value="">Rapportdata kunde inte laddas</option> : null}
             {properties.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
           </select>
         </label>
         <button type="button" onClick={() => setActiveSection(1)}>{formButtonLabel}</button>
-        <button disabled={!propertyId} onClick={autofillCustomerInfo} type="button">Autofyll kundinfo</button>
+        <button disabled={!propertyId || !!lockedReportId} onClick={autofillCustomerInfo} type="button">Autofyll kundinfo</button>
         <button disabled={isPending || saveableCount === 0} onClick={saveNow} type="button">Spara utkast</button>
         <button disabled={isPending || saveableCount === 0} onClick={() => saveReview()} type="button">Spara genomgång</button>
         <button disabled={isPending || !databaseOnline} onClick={previewReport} type="button">Förhandsgranska rapport</button>

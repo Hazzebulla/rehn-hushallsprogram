@@ -96,6 +96,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const report = await prisma.houseReport.findFirst({
     where: { id: reportId, companyId: session.companyId },
     include: {
+      property: { include: { customer: true } },
       submission: {
         include: {
           answers: true,
@@ -116,6 +117,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   }
 
   const answers = answerMap(report.submission.answers);
+  answers.customer_name = report.property.customer.name;
+  answers.contact = [report.property.customer.phone, report.property.customer.invoiceEmail].filter(Boolean).join(" / ");
+  answers.property_address = [report.property.propertyNo, report.property.address].filter(Boolean).join(" / ");
+  answers.build_year = report.property.buildYear?.toString() ?? "";
   const answerGroups = groupedAnswers(answers);
   const fieldKeys = new Set(rvmSections.flatMap((section) => section.fields.map((field) => field.key)));
   const answeredQuestions = answerGroups.reduce((sum, group) => sum + group.items.filter((item) => item.answered).length, 0);

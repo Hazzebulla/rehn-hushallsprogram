@@ -503,10 +503,62 @@ async function getReportProperties(): Promise<ReportPropertyOption[]> {
   }
 }
 
-async function getReportData(propertyId?: string): Promise<ReportData> {
+async function getReportData(propertyId?: string, selectedReportId?: string): Promise<ReportData> {
   try {
+    const blockedReportData = (message: string): ReportData => ({
+      propertyId: undefined,
+      reportId: selectedReportId,
+      reportNo: "Rapport saknas",
+      reportStatus: "NOT_FOUND",
+      formStatus: "NOT_STARTED",
+      formProgress: 0,
+      customerInformation: [],
+      customerImages: 0,
+      hasCompletedForm: false,
+      dataSufficient: false,
+      leadText: message,
+      statusCards: [
+        ["Rapportstatus", "Saknas", "Kontrollera länken", "gold"],
+        ["Riskindex", "Ej beräknat", "Underlag saknas", "gold"],
+        ["Teknisk status", "Ej bedömd", "Systemet gissar inte", "gold"],
+        ["Publicering", "Stängd", "Kund ser inget ännu", "gold"],
+      ],
+      healthScoreLabel: "Ej bedömd",
+      healthStatusText: "Underlag saknas",
+      riskIndexLabel: "Ej beräknat",
+      systemStatuses: [],
+      profile: [],
+      heatRegister: [],
+      drift: [],
+      energyTrend: [],
+      technicalAssessment: [],
+      waterCards: [],
+      waterItems: [],
+      waterPackage: undefined,
+      plan: [],
+      investmentTotal: "",
+      costBars: [],
+      priorityRows: [],
+      packageCards: [],
+      journalDocs: [],
+      signatures: [],
+      topRisks: [],
+      recommendedActions: ["Öppna rapporten från rapportlistan igen."],
+      riskOverview: [],
+    });
+    const selectedReport = selectedReportId
+      ? await prisma.houseReport.findFirst({
+          where: { id: selectedReportId, companyId: "org_rehn_vvs" },
+          select: { id: true, propertyId: true, submissionId: true },
+        })
+      : null;
+    if (selectedReportId && !selectedReport) {
+      return blockedReportData("Rapportdata kunde inte laddas. Ingen annan kunddata visas.");
+    }
     const property = await prisma.property.findFirst({
-      where: propertyId ? { id: propertyId, companyId: "org_rehn_vvs" } : { companyId: "org_rehn_vvs" },
+      where: selectedReport
+        ? { id: selectedReport.propertyId, companyId: "org_rehn_vvs" }
+        : propertyId ? { id: propertyId, companyId: "org_rehn_vvs" } : { companyId: "org_rehn_vvs" },
       orderBy: { updatedAt: "desc" },
       include: {
         customer: true,
@@ -528,12 +580,13 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
           },
         },
         houseReports: {
+          where: selectedReport ? { id: selectedReport.id } : undefined,
           orderBy: { generatedAt: "desc" },
           take: 1,
         },
       },
     }) as Awaited<ReturnType<typeof prisma.property.findFirst>> & {
-      customer?: { name: string };
+      customer?: { name: string; phone: string | null; invoiceEmail: string | null };
       healthScore?: { score: number; explanation: unknown } | null;
       components?: Array<{
         status: string;
@@ -615,8 +668,25 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
         riskOverview: [],
       };
     }
+    const propertyCustomer = property.customer;
+    if (!propertyCustomer) {
+      return blockedReportData("Fastigheten saknar kopplad kund. Ingen annan kunddata visas.");
+    }
 
-    const draftSubmission = await prisma.formSubmission.findFirst({
+    const reportSubmission = selectedReport
+      ? await prisma.formSubmission.findFirst({
+          where: {
+            id: selectedReport.submissionId,
+            companyId: "org_rehn_vvs",
+            inspection: { propertyId: property.id, companyId: "org_rehn_vvs" },
+          },
+          include: { answers: true, inspection: true },
+        })
+      : null;
+    if (selectedReport && !reportSubmission) {
+      return blockedReportData("Rapporten saknar giltigt formulärunderlag för den här fastigheten. Ingen annan kunddata visas.");
+    }
+    const draftSubmission = selectedReport ? null : await prisma.formSubmission.findFirst({
       where: {
         companyId: "org_rehn_vvs",
         status: "DRAFT",
@@ -625,7 +695,7 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
       include: { answers: true, inspection: true },
       orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     });
-    const completedSubmission = await prisma.formSubmission.findFirst({
+    const completedSubmission = selectedReport ? null : await prisma.formSubmission.findFirst({
       where: {
         companyId: "org_rehn_vvs",
         status: { not: "DRAFT" },
@@ -634,7 +704,7 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
       include: { answers: true, inspection: true },
       orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
     });
-    const directSubmission = draftSubmission ?? completedSubmission;
+    const directSubmission = reportSubmission ?? draftSubmission ?? completedSubmission;
     const latestSubmission = directSubmission ?? property.inspections?.[0]?.submissions[0];
     const latestReport = property.houseReports?.[0];
     const liveOutdoor = await getLiveOutdoorTemperature(`${property.address}, ${property.propertyNo ?? ""}`);
@@ -647,7 +717,24 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
     const latestRawAnswersAll = new Map<string, unknown>(
       latestSubmission?.answers.map((answer) => [answer.fieldKey, rawAnswerValue(answer.value)]) ?? [],
     );
+    if (selectedReport) {
+      latestRawAnswersAll.set("customer_name", propertyCustomer.name);
+      latestRawAnswersAll.set("contact", [propertyCustomer.phone, propertyCustomer.invoiceEmail].filter(Boolean).join(" / "));
+      latestRawAnswersAll.set("property_address", [property.propertyNo, property.address].filter(Boolean).join(" / "));
+      latestRawAnswersAll.set("build_year", property.buildYear?.toString() ?? "");
+    }
     const customerDeclaration = customerDeclarationRows(latestRawAnswersAll.get("customer_self_declaration"));
+    if (selectedReport) {
+      const identityLabels = new Set(["Namn", "E-post", "Telefon", "Fastighet", "Byggår"]);
+      customerDeclaration.rows = [
+        ["Namn", propertyCustomer.name],
+        ["E-post", propertyCustomer.invoiceEmail ?? ""],
+        ["Telefon", propertyCustomer.phone ?? ""],
+        ["Fastighet", [property.propertyNo, property.address].filter(Boolean).join(" / ")],
+        ["Byggår", property.buildYear?.toString() ?? ""],
+        ...customerDeclaration.rows.filter(([label]) => !identityLabels.has(label)),
+      ].filter(([, detail]) => detail.trim().length > 0);
+    }
     const sectionStatuses = sectionStatusMap(latestRawAnswersAll);
     const currentSignatureHash = reportSignatureHashFromRaw(latestRawAnswersAll, sectionStatuses);
     const signatures = reportSignatures(latestRawAnswersAll, currentSignatureHash);
@@ -658,6 +745,12 @@ async function getReportData(propertyId?: string): Promise<ReportData> {
     const latestAnswersAll = new Map<string, string>(
       latestSubmission?.answers.map((answer) => [answer.fieldKey, answerValue(answer.value)]) ?? [],
     );
+    if (selectedReport) {
+      latestAnswersAll.set("customer_name", propertyCustomer.name);
+      latestAnswersAll.set("contact", [propertyCustomer.phone, propertyCustomer.invoiceEmail].filter(Boolean).join(" / "));
+      latestAnswersAll.set("property_address", [property.propertyNo, property.address].filter(Boolean).join(" / "));
+      latestAnswersAll.set("build_year", property.buildYear?.toString() ?? "");
+    }
     const latestAnswers = new Map(
       Array.from(latestAnswersAll.entries()).filter(([key]) => answerKeyIsActive(sectionStatuses, key)),
     );
@@ -1036,11 +1129,11 @@ export const dynamic = "force-dynamic";
 export default async function HusrapportPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ propertyId?: string }>;
+  searchParams?: Promise<{ propertyId?: string; reportId?: string }>;
 }) {
   const params = await searchParams;
   const [reportData, reportProperties] = await Promise.all([
-    getReportData(params?.propertyId),
+    getReportData(params?.propertyId, params?.reportId),
     getReportProperties(),
   ]);
   const {
@@ -1088,7 +1181,8 @@ export default async function HusrapportPage({
     recommendedActions,
     riskOverview,
   } = reportData;
-  const reportHref = propertyId ? `/husrapport?propertyId=${propertyId}` : "/husrapport";
+  const reportHref = reportId ? `/husrapport?reportId=${reportId}` : propertyId ? `/husrapport?propertyId=${propertyId}` : "/husrapport";
+  const formHref = reportId ? `/admin/husstatus-form?reportId=${reportId}` : propertyId ? `/admin/husstatus-form?propertyId=${propertyId}` : "/admin/husstatus-form";
   const dataExportHref = propertyId ? `/api/husrapport/export?propertyId=${propertyId}` : "/api/husrapport/export";
   const formDataPdfHref = propertyId ? `/api/husrapport/form-data-pdf?propertyId=${propertyId}` : "/api/husrapport/form-data-pdf";
 
@@ -1116,7 +1210,7 @@ export default async function HusrapportPage({
           <strong>Kund → fastighet → kontrollbesök → formulär → rapport → granskning → publicering</strong>
         </div>
         <div className="reportWorkflowActions">
-          <a className="buttonLink" href={propertyId ? `/admin/husstatus-form?propertyId=${propertyId}` : "/admin/husstatus-form"}>
+          <a className="buttonLink" href={formHref}>
             {formStatus === "NOT_STARTED" ? "Fyll i formulär" : formStatus === "DRAFT" ? `Fortsätt formulär - ${formProgress} % klart` : "Visa formulärunderlag"}
           </a>
           <a className="buttonLink" href={reportHref}>Förhandsgranska rapport</a>
@@ -1172,7 +1266,7 @@ export default async function HusrapportPage({
         <section className="reportGate noPrint">
           <strong>Arbetsläge - ej publicerad kundrapport.</strong>
           <p>Status, risk och åtgärder beräknas från det autosparade formuläret. Slutför och granska formuläret innan rapporten används som kundversion.</p>
-          <a className="buttonLink" href={propertyId ? `/admin/husstatus-form?propertyId=${propertyId}` : "/admin/husstatus-form"}>Fortsätt formulär</a>
+          <a className="buttonLink" href={formHref}>Fortsätt formulär</a>
         </section>
       )}
 
@@ -1180,7 +1274,7 @@ export default async function HusrapportPage({
         <section className="reportGate noPrint">
           <strong>Mer underlag behövs.</strong>
           <p>Fyll i fler centrala formulärfält för den valda fastigheten. Rapporten börjar bedöma risk och teknisk status när minst 12 riktiga formulärfält är ifyllda.</p>
-          <a className="buttonLink" href={propertyId ? `/admin/husstatus-form?propertyId=${propertyId}` : "/admin/husstatus-form"}>Fyll i formulär</a>
+          <a className="buttonLink" href={formHref}>Fyll i formulär</a>
         </section>
       )}
 
