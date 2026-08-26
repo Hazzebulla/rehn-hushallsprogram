@@ -6759,6 +6759,160 @@ td {
   align-items: start;
 }
 
+.priceSearchPanel {
+  display: grid;
+  gap: 16px;
+}
+
+.priceSearchBox {
+  display: grid;
+  gap: 8px;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.priceSearchBox input {
+  width: 100%;
+  border: 1px solid rgba(88, 221, 236, 0.42);
+  border-radius: 8px;
+  background: rgba(2, 13, 17, 0.82);
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  min-height: 54px;
+  padding: 14px 16px;
+}
+
+.priceSearchStatus {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.priceResultCard {
+  border: 1px solid rgba(88, 221, 236, 0.28);
+  border-radius: 8px;
+  background: rgba(88, 221, 236, 0.06);
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.priceResultCard h4 {
+  color: var(--text);
+  font-size: clamp(20px, 2vw, 28px);
+  line-height: 1.05;
+  margin: 8px 0 6px;
+  text-transform: uppercase;
+}
+
+.priceResultCard p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.priceBadge,
+.priceStatus {
+  border: 1px solid rgba(88, 221, 236, 0.34);
+  border-radius: 999px;
+  color: var(--cyan);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 5px 9px;
+  text-transform: uppercase;
+}
+
+.priceStatus.active {
+  border-color: rgba(130, 210, 150, 0.46);
+  color: #82d296;
+}
+
+.priceStatus.soon {
+  border-color: rgba(240, 196, 69, 0.55);
+  color: #f0c445;
+}
+
+.priceStatus.expired,
+.priceExpired {
+  border-color: rgba(235, 93, 83, 0.55);
+  color: #eb5d53;
+}
+
+.priceResultFacts {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.priceResultFacts div {
+  border-top: 1px solid rgba(88, 221, 236, 0.16);
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.priceResultFacts dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.priceResultFacts dd {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 900;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.priceSearchResults {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.priceSearchResults button {
+  border: 1px solid rgba(88, 221, 236, 0.22);
+  border-radius: 8px;
+  background: rgba(2, 13, 17, 0.56);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+}
+
+.priceSearchResults span,
+.priceListTable small {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.tableActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tableActions a {
+  border: 1px solid rgba(88, 221, 236, 0.24);
+  border-radius: 6px;
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 900;
+  padding: 6px 8px;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
 .pricingForm {
   min-width: 0;
 }
@@ -6868,7 +7022,8 @@ td {
   }
 
   .pricingFields,
-  .pricingInlineForm {
+  .pricingInlineForm,
+  .priceResultFacts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -6882,5 +7037,10 @@ td {
 
   .pricingAdmin .portalPanel {
     overflow-x: auto;
+  }
+
+  .priceSearchResults,
+  .priceResultFacts {
+    grid-template-columns: 1fr;
   }
 }

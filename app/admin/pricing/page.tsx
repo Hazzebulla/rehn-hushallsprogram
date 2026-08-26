@@ -2,6 +2,7 @@ import { prisma } from "../../../lib/prisma";
 import { defaultPricingSettings, formatSekFromOre } from "../../../lib/pricing-engine";
 import { formatDateOnly } from "../../../lib/supplier-discount-letter-parser";
 import AdminSidebar from "../admin-sidebar";
+import ProductPriceSearch from "./product-price-search";
 import {
   createActionTemplateAction,
   createDemoEstimateAction,
@@ -27,6 +28,14 @@ function sekInput(ore: number) {
 
 function dateLabel(value: Date | null | undefined) {
   return formatDateOnly(value);
+}
+
+function priceListStatus(validTo: Date | null | undefined) {
+  if (!validTo) return "Okänd";
+  const daysLeft = Math.ceil((validTo.getTime() - Date.now()) / 86_400_000);
+  if (daysLeft < 0) return "Utgången";
+  if (daysLeft <= 45) return "Löper snart ut";
+  return "Aktiv";
 }
 
 function jsonString(value: unknown, key: string) {
@@ -61,7 +70,7 @@ async function getPricingData(discountBatchId?: string, dahlBatchId?: string) {
       dahlPreviewBatch,
     ] = await Promise.all([
       prisma.productModel.count(),
-      prisma.productModel.count({ where: { supplierPrices: { some: { active: true } } } }),
+      prisma.productModel.count({ where: { OR: [{ supplierPrices: { some: { active: true } } }, { supplierProducts: { some: { prices: { some: {} } } } }] } }),
       prisma.supplierDiscountRule.count({ where: { companyId: COMPANY_ID, active: true } }),
       prisma.productModel.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } }),
       prisma.productModel.findMany({
@@ -153,6 +162,11 @@ async function getPricingData(discountBatchId?: string, dahlBatchId?: string) {
           validTo: true,
           importedAt: true,
           sourceFileName: true,
+          importBatches: {
+            select: { id: true },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
           _count: { select: { prices: true } },
         },
         orderBy: [{ validFrom: "desc" }, { code: "asc" }],
@@ -250,6 +264,8 @@ export default async function PricingPage({
           <article className="portalPanel"><span>Rabattbrev</span><strong>{data.discountCount}</strong><small>Prioritet: RSK, grupp, tillverkare, leverantör</small></article>
           <article className="portalPanel"><span>Åtgärdsmallar</span><strong>{data.templates.length}</strong><small>Standardtider och ROT</small></article>
         </section>
+
+        <ProductPriceSearch />
 
         <section className="pricingGrid">
           <form className="portalPanel pricingForm" action={savePricingSettingsAction}>
@@ -380,16 +396,40 @@ export default async function PricingPage({
               <span>{data.dahlSupplier ? "Leverantör finns" : "Skapas automatiskt vid import"}</span>
             </div>
             {data.dahlPriceLists.length ? (
-              <div className="pricingList vertical">
-                {data.dahlPriceLists.map((list) => {
-                  const expired = list.validTo ? list.validTo.getTime() < Date.now() : false;
-                  return (
-                    <span key={list.id}>
-                      <strong>{list.code}</strong> {dateLabel(list.validFrom)} - {dateLabel(list.validTo)} · {list._count.prices} produkter · {expired ? "Utgången" : "Aktuell"} · {list.sourceFileName ?? "okänd fil"}
-                    </span>
-                  );
-                })}
-              </div>
+              <table className="priceListTable">
+                <thead>
+                  <tr>
+                    <th>Prislista</th>
+                    <th>Giltig från</th>
+                    <th>Giltig till</th>
+                    <th>Produkter</th>
+                    <th>Status</th>
+                    <th>Importerad</th>
+                    <th>Åtgärder</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.dahlPriceLists.map((list) => {
+                    const status = priceListStatus(list.validTo);
+                    return (
+                      <tr key={list.id}>
+                        <td><strong>{list.code}</strong><small>{list.sourceFileName ?? "okänd fil"}</small></td>
+                        <td>{dateLabel(list.validFrom)}</td>
+                        <td>{dateLabel(list.validTo)}</td>
+                        <td>{list._count.prices}</td>
+                        <td><span className={`priceStatus ${status === "Aktiv" ? "active" : status === "Löper snart ut" ? "soon" : "expired"}`}>{status}</span></td>
+                        <td>{dateLabel(list.importedAt)}</td>
+                        <td>
+                          <div className="tableActions">
+                            <a href={list.importBatches[0] ? `/admin/pricing?dahlBatchId=${list.importBatches[0].id}` : "/admin/pricing"}>Visa produkter</a>
+                            <a href="/admin/pricing">Historik</a>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             ) : (
               <p className="databaseNotice">Inga Dahl-prislistor importerade ännu.</p>
             )}
