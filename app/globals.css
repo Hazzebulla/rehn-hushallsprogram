@@ -1630,6 +1630,261 @@ td {
   grid-template-columns: 78px minmax(150px, 1fr) minmax(180px, 1.2fr) 150px 92px 118px;
 }
 
+.modernReportList {
+  display: grid;
+  gap: 14px;
+}
+
+.reportCard {
+  border: 1px solid rgba(72, 214, 230, 0.28);
+  border-radius: 8px;
+  background: rgba(4, 12, 12, 0.58);
+  overflow: hidden;
+}
+
+.reportCard.open {
+  border-color: rgba(72, 214, 230, 0.58);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
+}
+
+.reportCardMain {
+  display: grid;
+  grid-template-columns: 82px minmax(180px, 1fr) 150px minmax(210px, 0.9fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+}
+
+.reportCardMain.empty {
+  grid-template-columns: 82px minmax(180px, 1fr) auto;
+}
+
+.reportCardMain time {
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.reportCardMain strong,
+.reportCardMain span {
+  display: block;
+}
+
+.reportCardMain span,
+.reportMiniStats span {
+  color: var(--muted);
+}
+
+.reportStatusBadge {
+  width: fit-content;
+  min-width: 120px;
+  border: 1px solid rgba(72, 214, 230, 0.28);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--cyan);
+  font-size: 11px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.reportStatusBadge.published,
+.reportStatusBadge.ready {
+  border-color: rgba(130, 210, 150, 0.46);
+  color: #82d296;
+}
+
+.reportStatusBadge.review,
+.reportStatusBadge.progress {
+  border-color: rgba(240, 196, 69, 0.55);
+  color: #f0c445;
+}
+
+.reportMiniStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.reportMiniStats span {
+  border: 1px solid rgba(70, 158, 176, 0.24);
+  border-radius: 999px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.reportActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.reportActions .buttonLink {
+  white-space: nowrap;
+}
+
+.customerAnswersPanel {
+  display: grid;
+  gap: 16px;
+  border-top: 1px solid rgba(72, 214, 230, 0.24);
+  padding: 16px;
+  background: rgba(6, 20, 25, 0.74);
+}
+
+.customerAnswerSummary {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(72, 214, 230, 0.35);
+  border-radius: 8px;
+  padding: 13px;
+  background: rgba(4, 12, 12, 0.42);
+}
+
+.customerAnswerSummary strong {
+  color: var(--text);
+}
+
+.customerAnswerSummary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.customerAnswerGroups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.customerAnswerGroup {
+  border: 1px solid rgba(70, 158, 176, 0.28);
+  border-radius: 8px;
+  background: rgba(4, 12, 12, 0.38);
+  padding: 14px;
+}
+
+.customerAnswerGroup h4 {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.customerAnswerGroup dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.customerAnswerGroup dl div {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.85fr) minmax(0, 1.15fr);
+  gap: 10px;
+  border-top: 1px solid rgba(70, 158, 176, 0.18);
+  padding-top: 8px;
+}
+
+.customerAnswerGroup dt,
+.customerAnswerGroup dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.customerAnswerGroup dt {
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.customerAnswerGroup dd {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.customerAnswerGroup .unanswered dd {
+  color: rgba(223, 232, 229, 0.42);
+  font-style: italic;
+}
+
+.customerAnswerImages {
+  border: 1px solid rgba(70, 158, 176, 0.28);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.reportImageGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reportImageGrid button {
+  display: grid;
+  gap: 7px;
+  border: 1px solid rgba(72, 214, 230, 0.28);
+  border-radius: 8px;
+  padding: 7px;
+  background: rgba(4, 12, 12, 0.62);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.reportImageGrid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.reportImageGrid span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.reportImageLightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.reportImageLightbox figure {
+  display: grid;
+  gap: 12px;
+  max-width: min(980px, 94vw);
+  max-height: 92vh;
+  margin: 0;
+  border: 1px solid rgba(72, 214, 230, 0.38);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--panel);
+}
+
+.reportImageLightbox img {
+  max-width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.reportImageLightbox figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.reportImageLightbox span {
+  color: var(--muted);
+}
+
 .preInspectionList div {
   grid-template-columns: 90px minmax(150px, 1fr) minmax(180px, 1.2fr) 110px 92px;
 }
@@ -6515,6 +6770,10 @@ td {
   .inspectionForm,
   .customerVerifyList div,
   .auditList div,
+  .reportCardMain,
+  .reportCardMain.empty,
+  .customerAnswerSummary,
+  .customerAnswerGroup dl div,
   .systemChecks div,
   .submissionItem summary,
   .submissionMeta,
@@ -6538,6 +6797,19 @@ td {
   }
 
   .existingPhotosGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .customerAnswerGroups {
+    grid-template-columns: 1fr;
+  }
+
+  .reportActions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .reportImageGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

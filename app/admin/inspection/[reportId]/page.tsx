@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "../../../../lib/prisma";
 import { technicalSummary } from "../../../../lib/product-registry";
 import { emptyInspectionState, type TechnicianInspectionState } from "../../../../lib/technician-inspection";
+import { rvmSections } from "../../husstatus-form/spec";
 import AdminSidebar from "../../admin-sidebar";
 import TechnicianInspectionView, { type InspectionProductOption } from "./view";
 
@@ -43,6 +44,17 @@ function customerRows(value: unknown) {
     ["Kända problem", text(wetRooms.problems)],
     ["Önskad kontroll", text(declaration.focusAreas)],
   ].filter(([, value]) => value.trim().length > 0);
+}
+
+function allCustomerRows(answers: Map<string, unknown>) {
+  const rows = rvmSections.flatMap((section) =>
+    section.fields.map((field) => {
+      const value = text(answers.get(field.key)).trim();
+      return [`${section.id}. ${field.label}`, value || "Ej besvarat"];
+    }),
+  );
+  const filledRows = rows.filter(([, value]) => value !== "Ej besvarat");
+  return filledRows.length ? rows : customerRows(answers.get("customer_self_declaration"));
 }
 
 export default async function TechnicianInspectionPage({ params }: PageProps) {
@@ -93,7 +105,7 @@ export default async function TechnicianInspectionPage({ params }: PageProps) {
           buildYear: report.property.buildYear?.toString() ?? text(answers.get("build_year")),
           heating: text(answers.get("heat_source_type")) || "Ej angivet",
           customerCompletion: customerRows(answers.get("customer_self_declaration")).length ? 27 : 0,
-          customerRows: customerRows(answers.get("customer_self_declaration")),
+          customerRows: allCustomerRows(answers),
         }}
       />
     </main>

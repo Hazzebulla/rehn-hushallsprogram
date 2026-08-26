@@ -1,6 +1,7 @@
 import { prisma } from "../../../lib/prisma";
 import { houseReportStatusLabel, houseReportStatuses, normalizeHouseReportStatus, type HouseReportStatus } from "../../../lib/house-report-status";
 import AdminSidebar from "../admin-sidebar";
+import ReportsView, { type AdminReportVm } from "./reports-view";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ async function getReports(status?: string) {
 
     return {
       databaseOnline: true,
-      reports: reports.map((report) => {
+      reports: reports.map((report): AdminReportVm => {
         const explanation = report.property.healthScore?.explanation as { risk?: number; nextAction?: string } | undefined;
         return {
           id: report.id,
@@ -92,26 +93,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             <h3>Rapportlista</h3>
             <span>{reports.length} rapporter</span>
           </div>
-          <div className="auditList reportList">
-            {reports.length ? reports.map((report) => (
-              <div key={report.id}>
-                <time>{report.updatedAt}</time>
-                <strong>{report.customer}</strong>
-                <span>{report.address}</span>
-                <b>{houseReportStatusLabel(report.status)}</b>
-                <a className="buttonLink" href={`/husrapport?propertyId=${report.propertyId}`}>Visa</a>
-                <a className="buttonLink" href={`/admin/inspection/${report.id}`}>Besiktning</a>
-                <a className="buttonLink" href={`/admin/husstatus-form?propertyId=${report.propertyId}`}>Formulär</a>
-              </div>
-            )) : (
-              <div>
-                <time>Tomt</time>
-                <strong>Ingen rapport hittades</strong>
-                <span>Skapa en ny rapport eller byt filter.</span>
-                <a className="buttonLink" href="/admin/new-report">Ny Husrapport</a>
-              </div>
-            )}
-          </div>
+          <ReportsView reports={reports} />
         </section>
       </section>
     </main>
