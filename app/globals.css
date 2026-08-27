@@ -3439,9 +3439,14 @@ td {
   gap: 10px;
 }
 
-.customerList button {
-  display: block;
-  width: 100%;
+.customerListItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.customerList .customerListItem > button {
   padding: 16px;
   text-align: left;
   border: 1px solid var(--line);
@@ -3450,10 +3455,28 @@ td {
   cursor: pointer;
 }
 
-.customerList button.selected,
-.customerList button:hover {
+.customerList .customerSelectButton,
+.customerList .customerListItem > button:first-child {
+  display: block;
+  width: 100%;
+}
+
+.customerList .customerListItem.selected > button:first-child,
+.customerList .customerListItem > button:first-child:hover {
   border-color: var(--cyan);
   box-shadow: inset 3px 0 0 var(--cyan);
+}
+
+.customerList .deleteCustomerButton {
+  min-width: 84px;
+  text-align: center;
+  color: #ffd8d1;
+  border-color: rgba(215, 103, 85, 0.65);
+}
+
+.customerList .deleteCustomerButton:hover {
+  border-color: var(--danger);
+  background: rgba(215, 103, 85, 0.14);
 }
 
 .customerList strong,

@@ -30,6 +30,10 @@ type ActionResult =
   | { ok: true; customer: CustomerVm; message: string }
   | { ok: false; message: string };
 
+export type DeleteCustomerResult =
+  | { ok: true; deletedCustomerId: string; message: string }
+  | { ok: false; message: string };
+
 async function ensureCompany() {
   return prisma.company.upsert({
     where: { id: COMPANY_ID },
@@ -211,5 +215,172 @@ export async function publishCustomerToPortalAction(customerId: string): Promise
       ok: false,
       message: "Databasen är inte nåbar. Publiceringen visas bara lokalt i demo-vyn.",
     };
+  }
+}
+
+export async function deleteCustomerAction(customerId: string): Promise<DeleteCustomerResult> {
+  if (!customerId) return { ok: false, message: "Kund-ID saknas." };
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.findFirst({
+        where: { id: customerId, companyId: COMPANY_ID },
+        select: {
+          id: true,
+          name: true,
+          projects: { select: { id: true, number: true }, take: 3 },
+          properties: { select: { id: true } },
+        },
+      });
+
+      if (!customer) {
+        return { ok: false as const, message: "Kunden finns inte i databasen." };
+      }
+
+      if (customer.projects.length > 0) {
+        return {
+          ok: false as const,
+          message:
+            "Kunden har projekt/order kopplade till sig. Radera eller arkivera projektet först så att historik och ekonomi inte försvinner av misstag.",
+        };
+      }
+
+      const acceptedQuoteCount = await tx.quote.count({
+        where: {
+          companyId: COMPANY_ID,
+          customerId: customer.id,
+          OR: [{ acceptedAt: { not: null } }, { status: { in: ["ACCEPTED", "APPROVED"] } }],
+        },
+      });
+
+      if (acceptedQuoteCount > 0) {
+        return {
+          ok: false as const,
+          message:
+            "Kunden har accepterade offerter. De måste hanteras som historik/GDPR-ärende istället för direkt radering.",
+        };
+      }
+
+      const propertyIds = customer.properties.map((property) => property.id);
+      const reports = propertyIds.length
+        ? await tx.houseReport.findMany({
+            where: { companyId: COMPANY_ID, propertyId: { in: propertyIds } },
+            select: { id: true, submissionId: true },
+          })
+        : [];
+      const inspections = propertyIds.length
+        ? await tx.inspection.findMany({
+            where: { companyId: COMPANY_ID, propertyId: { in: propertyIds } },
+            select: { id: true, submissions: { select: { id: true } } },
+          })
+        : [];
+      const components = propertyIds.length
+        ? await tx.component.findMany({
+            where: { companyId: COMPANY_ID, propertyId: { in: propertyIds } },
+            select: { id: true },
+          })
+        : [];
+      const plans = propertyIds.length
+        ? await tx.maintenancePlan.findMany({
+            where: { companyId: COMPANY_ID, propertyId: { in: propertyIds } },
+            select: { id: true },
+          })
+        : [];
+
+      const reportIds = reports.map((report) => report.id);
+      const inspectionIds = inspections.map((inspection) => inspection.id);
+      const submissionIds = Array.from(new Set([
+        ...reports.map((report) => report.submissionId),
+        ...inspections.flatMap((inspection) => inspection.submissions.map((submission) => submission.id)),
+      ]));
+      const componentIds = components.map((component) => component.id);
+      const planIds = plans.map((plan) => plan.id);
+
+      if (reportIds.length) await tx.houseReport.deleteMany({ where: { companyId: COMPANY_ID, id: { in: reportIds } } });
+      if (submissionIds.length) {
+        await tx.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId: { in: submissionIds } } });
+        await tx.formSubmission.deleteMany({ where: { companyId: COMPANY_ID, id: { in: submissionIds } } });
+      }
+      if (inspectionIds.length) await tx.inspection.deleteMany({ where: { companyId: COMPANY_ID, id: { in: inspectionIds } } });
+      if (planIds.length || componentIds.length) {
+        await tx.maintenancePlanItem.deleteMany({
+          where: {
+            companyId: COMPANY_ID,
+            OR: [
+              ...(planIds.length ? [{ planId: { in: planIds } }] : []),
+              ...(componentIds.length ? [{ componentId: { in: componentIds } }] : []),
+            ],
+          },
+        });
+      }
+      if (planIds.length) await tx.maintenancePlan.deleteMany({ where: { companyId: COMPANY_ID, id: { in: planIds } } });
+      if (componentIds.length) {
+        await tx.componentInspection.deleteMany({ where: { companyId: COMPANY_ID, componentId: { in: componentIds } } });
+        await tx.component.deleteMany({ where: { companyId: COMPANY_ID, id: { in: componentIds } } });
+      }
+      if (propertyIds.length) {
+        await tx.propertyComponent.deleteMany({ where: { companyId: COMPANY_ID, propertyId: { in: propertyIds } } });
+        await tx.propertyHealthScore.deleteMany({ where: { companyId: COMPANY_ID, propertyId: { in: propertyIds } } });
+        await tx.documentAsset.deleteMany({
+          where: {
+            companyId: COMPANY_ID,
+            OR: [{ customerId: customer.id }, { propertyId: { in: propertyIds } }],
+          },
+        });
+        await tx.customerRequest.deleteMany({
+          where: {
+            companyId: COMPANY_ID,
+            OR: [{ customerId: customer.id }, { propertyId: { in: propertyIds } }],
+          },
+        });
+        await tx.customerPreInspectionLink.deleteMany({
+          where: {
+            companyId: COMPANY_ID,
+            OR: [{ customerId: customer.id }, { propertyId: { in: propertyIds } }],
+          },
+        });
+        await tx.ownershipTransfer.deleteMany({ where: { companyId: COMPANY_ID, propertyId: { in: propertyIds } } });
+        await tx.property.deleteMany({ where: { companyId: COMPANY_ID, id: { in: propertyIds } } });
+      } else {
+        await tx.documentAsset.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+        await tx.customerRequest.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+        await tx.customerPreInspectionLink.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+      }
+
+      await tx.quote.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+      await tx.serviceAgreement.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+      await tx.notificationPreference.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+      await tx.notification.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+      await tx.consent.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+      await tx.gdprRequest.updateMany({ where: { companyId: COMPANY_ID, customerId: customer.id }, data: { customerId: null } });
+      await tx.customerPortalAccount.deleteMany({ where: { companyId: COMPANY_ID, customerId: customer.id } });
+      await tx.customer.delete({ where: { id: customer.id } });
+
+      await tx.auditLog.create({
+        data: {
+          companyId: COMPANY_ID,
+          actorId: DEMO_ACTOR_ID,
+          action: "DELETE_CUSTOMER",
+          entity: "Customer",
+          entityId: customer.id,
+          before: {
+            customerName: customer.name,
+            propertyCount: propertyIds.length,
+            reportCount: reportIds.length,
+            submissionCount: submissionIds.length,
+          },
+        },
+      });
+
+      return { ok: true as const, deletedCustomerId: customer.id, message: "Kunden och kopplad husrapportdata raderades." };
+    });
+
+    revalidatePath("/admin/customers");
+    revalidatePath("/admin/reports");
+    revalidatePath("/portal");
+    return result;
+  } catch (error) {
+    console.error("Delete customer failed", error);
+    return { ok: false, message: "Kunden kunde inte raderas. Kontrollera kopplad data eller databasanslutningen." };
   }
 }

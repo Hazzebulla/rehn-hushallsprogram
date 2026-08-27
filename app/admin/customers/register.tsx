@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
-import { createCustomerAction, publishCustomerToPortalAction, type CustomerVm } from "./actions";
+import { createCustomerAction, deleteCustomerAction, publishCustomerToPortalAction, type CustomerVm } from "./actions";
 
 const seedCustomers: CustomerVm[] = [
   {
@@ -206,6 +206,31 @@ export default function CustomerRegister({
     });
   }
 
+  function deleteCustomer(customer: CustomerVm) {
+    const confirmed = window.confirm(
+      `Radera ${customer.name}?\n\nKunden, fastigheten, husrapportdata och kundens bilder tas bort. Projekt och accepterade offerter stoppar raderingen.`,
+    );
+    if (!confirmed) return;
+
+    if (customer.id.startsWith("LOCAL-") || !databaseOnline) {
+      const nextCustomers = customers.filter((item) => item.id !== customer.id);
+      setCustomers(nextCustomers);
+      setSelectedId(nextCustomers[0]?.id ?? "");
+      setMessage("Lokal demokund raderades.");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await deleteCustomerAction(customer.id);
+      if (result.ok) {
+        const nextCustomers = customers.filter((item) => item.id !== result.deletedCustomerId);
+        setCustomers(nextCustomers);
+        setSelectedId(nextCustomers[0]?.id ?? "");
+      }
+      setMessage(result.message);
+    });
+  }
+
   return (
     <section className="adminWork customerWork">
       <header className="adminTop">
@@ -324,15 +349,24 @@ export default function CustomerRegister({
           </div>
           <div className="customerList">
             {customers.map((customer) => (
-              <button
-                className={customer.id === selected.id ? "selected" : ""}
-                key={customer.id}
-                onClick={() => setSelectedId(customer.id)}
-                type="button"
-              >
-                <strong>{customer.name}</strong>
-                <span>{customer.property} · {customer.status}</span>
-              </button>
+              <div className={customer.id === selected?.id ? "customerListItem selected" : "customerListItem"} key={customer.id}>
+                <button
+                  className={customer.id === selected?.id ? "selected" : ""}
+                  onClick={() => setSelectedId(customer.id)}
+                  type="button"
+                >
+                  <strong>{customer.name}</strong>
+                  <span>{customer.property} · {customer.status}</span>
+                </button>
+                <button
+                  className="deleteCustomerButton"
+                  disabled={isPending}
+                  onClick={() => deleteCustomer(customer)}
+                  type="button"
+                >
+                  Radera
+                </button>
+              </div>
             ))}
           </div>
         </article>
