@@ -201,10 +201,10 @@ export default function Page() {
                 </tr>
               </thead>
               <tbody>
-                {components.map((row) => (
-                  <tr key={row.join("-")}>
+                {components.map((row, rowIndex) => (
+                  <tr key={`component-row-${rowIndex}`}>
                     {row.map((cell, index) => (
-                      <td key={cell} className={index === 4 ? `state ${cell.toLowerCase()}` : ""}>{cell}</td>
+                      <td key={`component-cell-${rowIndex}-${index}`} className={index === 4 ? `state ${cell.toLowerCase()}` : ""}>{cell}</td>
                     ))}
                   </tr>
                 ))}

@@ -1463,7 +1463,13 @@ export default async function HusrapportPage({
           <div className="equipmentImage heatImage" />
           <table>
             <thead><tr><th>Komponent</th><th>Fabrikat / modell</th><th>Data / dim</th><th>Serie-ID</th><th>År</th><th>Status</th></tr></thead>
-            <tbody>{heatRegister.map((row) => <tr key={row.join("-")}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>)}</tbody>
+            <tbody>
+              {heatRegister.map((row, rowIndex) => (
+                <tr key={`heat-row-${rowIndex}`}>
+                  {row.map((cell, cellIndex) => <td key={`heat-cell-${rowIndex}-${cellIndex}`}>{cell}</td>)}
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
         <div className="lightStrip">
@@ -1571,7 +1577,11 @@ export default async function HusrapportPage({
           <table>
             <thead><tr><th>Prio</th><th>Åtgärd</th><th>Varför</th><th>Tid</th><th>Estimat</th><th>Status</th></tr></thead>
             <tbody>
-              {priorityRows.map((row) => <tr key={row.join("-")}>{row.map((cell) => <td key={cell}>{cell}</td>)}</tr>)}
+              {priorityRows.map((row, rowIndex) => (
+                <tr key={`priority-row-${rowIndex}`}>
+                  {row.map((cell, cellIndex) => <td key={`priority-cell-${rowIndex}-${cellIndex}`}>{cell}</td>)}
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
@@ -1607,7 +1617,7 @@ export default async function HusrapportPage({
             {journalDocs.map((doc) => (
               <article key={doc.title}>
                 <h3>{doc.title}</h3>
-                {doc.rows.map((row) => <p key={row}>{row}</p>)}
+                {doc.rows.map((row, rowIndex) => <p key={`${doc.title}-row-${rowIndex}`}>{row}</p>)}
               </article>
             ))}
           </div>
