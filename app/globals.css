@@ -3360,7 +3360,8 @@ td {
 }
 
 .customerOps {
-  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  grid-template-columns: minmax(320px, 0.72fr) minmax(760px, 1.5fr);
+  align-items: start;
 }
 
 .customerDetail {
@@ -3501,70 +3502,16 @@ td {
   cursor: pointer;
 }
 
-.customerList {
-  display: grid;
-  gap: 10px;
-}
-
-.customerListItem {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: stretch;
-}
-
-.customerList .customerListItem > button {
-  padding: 16px;
-  text-align: left;
-  border: 1px solid var(--line);
-  background: rgba(4, 12, 12, 0.46);
-  color: var(--text);
-  cursor: pointer;
-}
-
-.customerList .customerSelectButton,
-.customerList .customerListItem > button:first-child {
-  display: block;
-  width: 100%;
-}
-
-.customerList .customerListItem.selected > button:first-child,
-.customerList .customerListItem > button:first-child:hover {
-  border-color: var(--cyan);
-  box-shadow: inset 3px 0 0 var(--cyan);
-}
-
-.customerList .deleteCustomerButton {
-  min-width: 84px;
-  text-align: center;
-  color: #ffd8d1;
-  border-color: rgba(215, 103, 85, 0.65);
-}
-
-.customerList .deleteCustomerButton:hover {
-  border-color: var(--danger);
-  background: rgba(215, 103, 85, 0.14);
-}
-
-.customerList strong,
-.customerList span {
-  display: block;
-}
-
-.customerList span {
-  margin-top: 6px;
-  color: var(--muted);
-}
-
 .customerRegistryPanel {
   min-height: 620px;
+  padding: 24px;
 }
 
 .customerRegistryTools {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 180px 170px;
-  gap: 10px;
-  margin-bottom: 12px;
+  grid-template-columns: minmax(300px, 1fr) 180px 170px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .customerRegistryTools input,
@@ -3582,20 +3529,25 @@ td {
   max-height: 520px;
   overflow: auto;
   border: 1px solid rgba(99, 199, 210, 0.18);
+  background: rgba(4, 12, 12, 0.34);
 }
 
 .customerTable {
   width: 100%;
+  min-width: 1060px;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .customerTable th,
 .customerTable td {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid rgba(99, 199, 210, 0.16);
   text-align: left;
   vertical-align: top;
+  line-height: 1.25;
 }
 
 .customerTable th {
@@ -3606,6 +3558,50 @@ td {
   color: white;
   text-transform: uppercase;
   font-size: 10px;
+  line-height: 1.15;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.customerTable th:nth-child(1),
+.customerTable td:nth-child(1) {
+  width: 76px;
+  white-space: nowrap;
+}
+
+.customerTable th:nth-child(2),
+.customerTable td:nth-child(2) {
+  width: 190px;
+}
+
+.customerTable th:nth-child(3),
+.customerTable td:nth-child(3) {
+  width: 320px;
+}
+
+.customerTable th:nth-child(4),
+.customerTable td:nth-child(4) {
+  width: 118px;
+  white-space: nowrap;
+}
+
+.customerTable th:nth-child(5),
+.customerTable td:nth-child(5) {
+  width: 168px;
+  white-space: nowrap;
+}
+
+.customerTable th:nth-child(6),
+.customerTable td:nth-child(6) {
+  width: 108px;
+  white-space: nowrap;
+}
+
+.customerTable th:nth-child(7),
+.customerTable td:nth-child(7) {
+  width: 70px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .customerTable tr {
@@ -3620,21 +3616,23 @@ td {
 .customerTable strong,
 .customerTable small {
   display: block;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .customerTable small {
   margin-top: 3px;
   color: var(--muted);
+  line-height: 1.3;
 }
 
 .statusPill {
   display: inline-flex;
-  min-height: 24px;
+  min-height: 26px;
   align-items: center;
   padding: 0 8px;
-  border: 1px solid rgba(99, 199, 210, 0.3);
-  color: var(--cyan);
+  border: 1px solid rgba(225, 181, 46, 0.78);
+  border-radius: 999px;
+  color: #e6c550;
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
@@ -3647,12 +3645,13 @@ td {
 }
 
 .rowMenuWrap > button {
-  width: 34px;
-  height: 28px;
+  width: 36px;
+  height: 30px;
   border: 1px solid var(--line);
   background: rgba(4, 12, 12, 0.7);
   color: var(--cyan);
   cursor: pointer;
+  text-align: center;
 }
 
 .rowMenu {
@@ -6730,6 +6729,12 @@ td {
     height: 720px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1280px) {
+  .customerOps {
+    grid-template-columns: 1fr;
   }
 }
 

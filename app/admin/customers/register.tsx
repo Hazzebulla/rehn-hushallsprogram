@@ -686,8 +686,8 @@ export default function CustomerRegister({
                   <th>Fastighet/adress</th>
                   <th>Telefon</th>
                   <th>Status</th>
-                  <th>Senast ändrad</th>
-                  <th>Åtgärder</th>
+                  <th>Ändrad</th>
+                  <th>Meny</th>
                 </tr>
               </thead>
               <tbody>
