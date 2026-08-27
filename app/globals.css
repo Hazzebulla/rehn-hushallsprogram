@@ -956,10 +956,13 @@ td {
 
 .portalTwo,
 .adminGrid {
-  grid-template-columns: 1.35fr 0.65fr;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
 }
 
 .portalPanel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
   padding: 22px;
   border: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(18, 41, 44, 0.78), rgba(7, 15, 15, 0.92));
@@ -970,17 +973,28 @@ td {
 .adminTop h1 {
   color: white;
   text-transform: uppercase;
-  font-size: clamp(34px, 5vw, 70px);
-  max-width: 760px;
+  font-size: clamp(32px, 4.2vw, 64px);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   margin-bottom: 12px;
 }
 
 .liveScore {
   display: grid;
-  grid-template-columns: 154px 1fr;
+  grid-template-columns: 154px minmax(0, 1fr);
   gap: 22px;
   align-items: center;
   margin-top: 24px;
+}
+
+.liveScore > div {
+  min-width: 0;
+}
+
+.liveScore b,
+.liveScore small {
+  overflow-wrap: anywhere;
 }
 
 .scoreOrb {
@@ -3346,11 +3360,16 @@ td {
 }
 
 .customerOps {
-  grid-template-columns: 0.88fr 1.12fr;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
 }
 
 .customerDetail {
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+}
+
+.customerOps > *,
+.customerDetail > * {
+  min-width: 0;
 }
 
 .customerForm {
@@ -6516,6 +6535,24 @@ td {
 
   .adminTop h1 {
     font-size: clamp(32px, 4.2vw, 54px);
+  }
+
+  .customerDetail .healthPanel h1 {
+    font-size: clamp(30px, 5.2vw, 48px);
+  }
+
+  .customerDetail .liveScore {
+    grid-template-columns: 128px minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .customerDetail .scoreOrb {
+    width: 128px;
+    height: 128px;
+  }
+
+  .customerDetail .scoreOrb strong {
+    font-size: 46px;
   }
 
   .adminKpis {
