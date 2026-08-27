@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 
 const COMPANY_ID = "org_rehn_vvs";
@@ -8,12 +9,15 @@ const DEMO_ACTOR_ID = "usr_admin_rehn";
 
 export type CustomerVm = {
   id: string;
+  customerNumber: string;
   name: string;
   identifier: string;
   email: string;
   phone: string;
   property: string;
   address: string;
+  postalCode: string;
+  city: string;
   type: string;
   buildYear: string;
   heating: string;
@@ -22,9 +26,38 @@ export type CustomerVm = {
   health: number;
   nextAction: string;
   status: string;
+  createdAt: string;
+  updatedAt: string;
+  propertyCount: number;
+  reportCount: number;
+  latestReportId: string;
+  latestReportDate: string;
+  properties: Array<{
+    id: string;
+    label: string;
+    address: string;
+    type: string;
+    reportCount: number;
+    latestReportId: string;
+    latestReportDate: string;
+  }>;
 };
 
-type CustomerInput = Omit<CustomerVm, "id" | "risk" | "health" | "status">;
+export type CustomerInput = {
+  name: string;
+  identifier: string;
+  email: string;
+  phone: string;
+  property: string;
+  address: string;
+  postalCode: string;
+  city: string;
+  type: string;
+  buildYear: string;
+  heating: string;
+  profileSourceUrl: string;
+  nextAction: string;
+};
 
 type ActionResult =
   | { ok: true; customer: CustomerVm; message: string }
@@ -46,6 +79,90 @@ async function ensureCompany() {
   });
 }
 
+function formatCustomerNumber(value: number) {
+  return String(value).padStart(6, "0");
+}
+
+function numericCustomerNumber(value: string | null | undefined) {
+  const number = Number(String(value ?? "").replace(/[^\d]/g, ""));
+  return Number.isFinite(number) ? number : 0;
+}
+
+async function nextCustomerNumber(tx: Prisma.TransactionClient) {
+  const latestCustomer = await tx.customer.findFirst({
+    where: { companyId: COMPANY_ID, customerNumber: { not: null } },
+    orderBy: { customerNumber: "desc" },
+    select: { customerNumber: true },
+  });
+  const minimumNextValue = Math.max(100001, numericCustomerNumber(latestCustomer?.customerNumber) + 1);
+
+  const sequence = await tx.numberSequence.upsert({
+    where: { companyId_scope: { companyId: COMPANY_ID, scope: "customer_number" } },
+    update: {},
+    create: { companyId: COMPANY_ID, scope: "customer_number", nextValue: minimumNextValue },
+    select: { nextValue: true },
+  });
+
+  if (sequence.nextValue < minimumNextValue) {
+    await tx.numberSequence.update({
+      where: { companyId_scope: { companyId: COMPANY_ID, scope: "customer_number" } },
+      data: { nextValue: minimumNextValue },
+    });
+  }
+
+  const updatedSequence = await tx.numberSequence.update({
+    where: { companyId_scope: { companyId: COMPANY_ID, scope: "customer_number" } },
+    data: { nextValue: { increment: 1 } },
+    select: { nextValue: true },
+  });
+
+  return formatCustomerNumber(updatedSequence.nextValue - 1);
+}
+
+export async function ensureExistingCustomerNumbers() {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const customers = await tx.customer.findMany({
+        where: { companyId: COMPANY_ID, customerNumber: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (!customers.length) return;
+
+      const latestCustomer = await tx.customer.findFirst({
+        where: { companyId: COMPANY_ID, customerNumber: { not: null } },
+        orderBy: { customerNumber: "desc" },
+        select: { customerNumber: true },
+      });
+      const startValue = Math.max(100001, numericCustomerNumber(latestCustomer?.customerNumber) + 1);
+      const nextValue = startValue + customers.length;
+
+      const sequence = await tx.numberSequence.upsert({
+        where: { companyId_scope: { companyId: COMPANY_ID, scope: "customer_number" } },
+        update: {},
+        create: { companyId: COMPANY_ID, scope: "customer_number", nextValue },
+        select: { nextValue: true },
+      });
+
+      const effectiveStart = Math.max(startValue, sequence.nextValue);
+
+      for (const [index, customer] of customers.entries()) {
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: { customerNumber: formatCustomerNumber(effectiveStart + index) },
+        });
+      }
+
+      await tx.numberSequence.update({
+        where: { companyId_scope: { companyId: COMPANY_ID, scope: "customer_number" } },
+        data: { nextValue: effectiveStart + customers.length },
+      });
+    }, { timeout: 20000 });
+  } catch (error) {
+    console.error("Customer number backfill failed", error);
+  }
+}
+
 export async function createCustomerAction(input: CustomerInput): Promise<ActionResult> {
   try {
     await ensureCompany();
@@ -53,9 +170,10 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
     const health = input.type === "BRF" ? 68 : 79;
     const risk = input.type === "BRF" ? 36 : 22;
 
-    const customer = await prisma.customer.create({
+    const customer = await prisma.$transaction(async (tx) => tx.customer.create({
       data: {
         companyId: COMPANY_ID,
+        customerNumber: await nextCustomerNumber(tx),
         type: input.type,
         name: input.name,
         orgOrPersonNo: input.identifier || null,
@@ -94,7 +212,7 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
       include: {
         properties: { include: { healthScore: true }, take: 1 },
       },
-    });
+    }));
 
     const property = customer.properties[0];
 
@@ -124,12 +242,15 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
       message: "Kund och fastighet sparades i databasen.",
       customer: {
         id: customer.id,
+        customerNumber: customer.customerNumber ?? "",
         name: customer.name,
         identifier: customer.orgOrPersonNo ?? input.identifier,
         email: customer.invoiceEmail ?? input.email,
         phone: customer.phone ?? "",
         property: property?.propertyNo ?? input.property,
         address: property?.address ?? input.address,
+        postalCode: input.postalCode ?? "",
+        city: input.city ?? "",
         type: property?.type ?? input.type,
         buildYear: property?.buildYear ? String(property.buildYear) : input.buildYear,
         heating: input.heating,
@@ -138,6 +259,21 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
         health,
         nextAction: input.nextAction,
         status: "Utkast",
+        createdAt: customer.createdAt.toLocaleDateString("sv-SE"),
+        updatedAt: customer.updatedAt.toLocaleDateString("sv-SE"),
+        propertyCount: customer.properties.length,
+        reportCount: 0,
+        latestReportId: "",
+        latestReportDate: "",
+        properties: property ? [{
+          id: property.id,
+          label: property.propertyNo ?? input.property,
+          address: property.address,
+          type: property.type,
+          reportCount: 0,
+          latestReportId: "",
+          latestReportDate: "",
+        }] : [],
       },
     };
   } catch {
@@ -194,12 +330,15 @@ export async function publishCustomerToPortalAction(customerId: string): Promise
       message: "Kunden publicerades till kundportalen.",
       customer: {
         id: customer.id,
+        customerNumber: customer.customerNumber ?? "",
         name: customer.name,
         identifier: customer.orgOrPersonNo ?? "",
         email: customer.invoiceEmail ?? "",
         phone: customer.phone ?? "",
         property: property?.propertyNo ?? "Fastighet",
         address: property?.address ?? "",
+        postalCode: "",
+        city: "",
         type: property?.type ?? customer.type,
         buildYear: property?.buildYear ? String(property.buildYear) : "",
         heating: explanation?.heating ?? "Ej angivet",
@@ -208,6 +347,21 @@ export async function publishCustomerToPortalAction(customerId: string): Promise
         health: property?.healthScore?.score ?? 74,
         nextAction: explanation?.nextAction ?? "Nästa åtgärd saknas",
         status: "Publicerad portal",
+        createdAt: customer.createdAt.toLocaleDateString("sv-SE"),
+        updatedAt: customer.updatedAt.toLocaleDateString("sv-SE"),
+        propertyCount: customer.properties.length,
+        reportCount: 0,
+        latestReportId: "",
+        latestReportDate: "",
+        properties: property ? [{
+          id: property.id,
+          label: property.propertyNo ?? "Fastighet",
+          address: property.address,
+          type: property.type,
+          reportCount: 0,
+          latestReportId: "",
+          latestReportDate: "",
+        }] : [],
       },
     };
   } catch {

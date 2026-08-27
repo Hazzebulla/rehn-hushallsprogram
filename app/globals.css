@@ -3414,6 +3414,29 @@ td {
   font-weight: 800;
 }
 
+.customerFormGroup {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(99, 199, 210, 0.2);
+}
+
+.customerFormGroup legend {
+  padding: 0 6px;
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.customerForm small {
+  color: #ffb4a6;
+  text-transform: none;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
 .customerForm input,
 .customerForm select,
 .customerForm textarea {
@@ -3438,6 +3461,31 @@ td {
 .customerForm textarea:focus {
   border-color: var(--cyan);
   box-shadow: 0 0 0 2px rgba(99, 199, 210, 0.14);
+}
+
+.customerKindSwitch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--line);
+}
+
+.customerKindSwitch button {
+  min-height: 40px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: rgba(4, 12, 12, 0.38);
+  color: var(--muted);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.customerKindSwitch button:last-child {
+  border-right: 0;
+}
+
+.customerKindSwitch button.active {
+  background: var(--cyan);
+  color: #041011;
 }
 
 .formSplit {
@@ -3505,6 +3553,204 @@ td {
 
 .customerList span {
   margin-top: 6px;
+  color: var(--muted);
+}
+
+.customerRegistryPanel {
+  min-height: 620px;
+}
+
+.customerRegistryTools {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 180px 170px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.customerRegistryTools input,
+.customerRegistryTools select {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  background: #071010;
+  color: var(--text);
+  padding: 0 12px;
+  outline: none;
+}
+
+.customerTableWrap {
+  position: relative;
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid rgba(99, 199, 210, 0.18);
+}
+
+.customerTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.customerTable th,
+.customerTable td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(99, 199, 210, 0.16);
+  text-align: left;
+  vertical-align: top;
+}
+
+.customerTable th {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  background: #102428;
+  color: white;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.customerTable tr {
+  cursor: pointer;
+}
+
+.customerTable tr.selected,
+.customerTable tr:hover {
+  background: rgba(99, 199, 210, 0.08);
+}
+
+.customerTable strong,
+.customerTable small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.customerTable small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.statusPill {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid rgba(99, 199, 210, 0.3);
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rowMenuWrap {
+  position: relative;
+  display: inline-block;
+}
+
+.rowMenuWrap > button {
+  width: 34px;
+  height: 28px;
+  border: 1px solid var(--line);
+  background: rgba(4, 12, 12, 0.7);
+  color: var(--cyan);
+  cursor: pointer;
+}
+
+.rowMenu {
+  position: absolute;
+  z-index: 20;
+  top: 34px;
+  right: 0;
+  display: grid;
+  min-width: 190px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: #061011;
+  box-shadow: 0 20px 45px rgba(0,0,0,0.45);
+}
+
+.rowMenu button,
+.rowMenu a {
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.rowMenu button:hover,
+.rowMenu a:hover {
+  background: rgba(99, 199, 210, 0.1);
+}
+
+.rowMenu .danger {
+  color: #ffb4a6;
+}
+
+.customerMobileCard {
+  display: none;
+}
+
+.duplicateNotice {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--warn);
+  background: rgba(225, 181, 46, 0.08);
+  color: var(--text);
+}
+
+.duplicateNotice strong,
+.duplicateNotice span {
+  display: block;
+}
+
+.duplicateNotice div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.duplicateNotice button {
+  min-height: 34px;
+  border: 1px solid var(--warn);
+  background: transparent;
+  color: var(--warn);
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.customerQuickPanel h1 {
+  font-size: clamp(30px, 3.8vw, 54px);
+}
+
+.customerProperties {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.customerProperties h3 {
+  margin-bottom: 2px;
+}
+
+.customerProperties div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(99, 199, 210, 0.18);
+  background: rgba(4, 12, 12, 0.32);
+}
+
+.customerProperties span,
+.customerProperties small {
+  color: var(--muted);
+}
+
+.emptyState {
+  padding: 18px;
   color: var(--muted);
 }
 
@@ -6555,6 +6801,10 @@ td {
     font-size: 46px;
   }
 
+  .customerRegistryTools {
+    grid-template-columns: 1fr 150px 150px;
+  }
+
   .adminKpis {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -6867,6 +7117,49 @@ td {
   .reportActions {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .customerRegistryTools {
+    grid-template-columns: 1fr;
+  }
+
+  .customerTableWrap {
+    max-height: 620px;
+    border: 0;
+  }
+
+  .customerTable {
+    display: none;
+  }
+
+  .customerMobileCard {
+    display: grid;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid rgba(99, 199, 210, 0.18);
+    background: rgba(4, 12, 12, 0.42);
+    cursor: pointer;
+  }
+
+  .customerMobileCard + .customerMobileCard {
+    margin-top: 8px;
+  }
+
+  .customerMobileCard.selected {
+    border-color: var(--cyan);
+    box-shadow: inset 3px 0 0 var(--cyan);
+  }
+
+  .customerMobileCard span {
+    color: var(--cyan);
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .customerMobileCard strong,
+  .customerMobileCard small {
+    overflow-wrap: anywhere;
   }
 
   .reportImageGrid {

@@ -104,8 +104,20 @@ model Company {
   gdprRequests GdprRequest[]
   backupJobs   BackupJob[]
   auditLogs    AuditLog[]
+  numberSequences NumberSequence[]
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+}
+
+model NumberSequence {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scope     String
+  nextValue Int      @default(100001)
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, scope])
 }
 
 model User {
@@ -160,6 +172,7 @@ model Customer {
   id            String                 @id @default(cuid())
   companyId     String
   company       Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerNumber String?
   type          String
   name          String
   orgOrPersonNo String?
@@ -174,7 +187,10 @@ model Customer {
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 
+  @@unique([companyId, customerNumber])
   @@index([companyId, name])
+  @@index([companyId, invoiceEmail])
+  @@index([companyId, phone])
 }
 
 model Project {
