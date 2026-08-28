@@ -1,6 +1,8 @@
 ﻿import { prisma } from "../../lib/prisma";
 import { getLiveOutdoorTemperature } from "../../lib/weather";
 import { houseReportStatusLabel } from "../../lib/house-report-status";
+import { calculateHusstatusScore } from "../../lib/husstatus-scoring";
+import type { RiskMatrixPoint } from "../../lib/husstatus-scoring";
 import { rvmFieldCount, rvmSections } from "../admin/husstatus-form/spec";
 import { updateHouseReportStatusAction } from "./actions";
 import PrintReportButton from "./print-button";
@@ -129,6 +131,9 @@ type ReportData = {
   healthScoreLabel: string;
   healthStatusText: string;
   riskIndexLabel: string;
+  controlGradeLabel: string;
+  scoreFacts: string[];
+  assessmentRows: string[][];
   systemStatuses: SystemStatus[];
   profile: string[][];
   heatRegister: string[][];
@@ -148,6 +153,7 @@ type ReportData = {
   topRisks: string[][];
   recommendedActions: string[];
   riskOverview: Array<[string, number]>;
+  riskMatrix: RiskMatrixPoint[];
 };
 
 type ReportPropertyOption = {
@@ -526,6 +532,9 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       healthScoreLabel: "Ej bedömd",
       healthStatusText: "Underlag saknas",
       riskIndexLabel: "Ej beräknat",
+      controlGradeLabel: "Ej beräknad",
+      scoreFacts: [],
+      assessmentRows: [],
       systemStatuses: [],
       profile: [],
       heatRegister: [],
@@ -545,6 +554,7 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       topRisks: [],
       recommendedActions: ["Öppna rapporten från rapportlistan igen."],
       riskOverview: [],
+      riskMatrix: [],
     });
     const selectedReport = selectedReportId
       ? await prisma.houseReport.findFirst({
@@ -647,6 +657,9 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
         healthScoreLabel: "Ej bedömd",
         healthStatusText: "Underlag saknas",
         riskIndexLabel: "Ej beräknat",
+        controlGradeLabel: "Ej beräknad",
+        scoreFacts: [],
+        assessmentRows: [],
         systemStatuses: [],
         profile: [],
         heatRegister: [],
@@ -666,6 +679,7 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
         topRisks: [],
         recommendedActions: ["Slutför RVM Husstatus-formuläret för fastigheten."],
         riskOverview: [],
+        riskMatrix: [],
       };
     }
     const propertyCustomer = property.customer;
@@ -763,18 +777,20 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
     }).length;
     const formProgress = Math.min(100, Math.round((answeredFields / Math.max(activeReportFieldCount, 1)) * 100));
     const hasCompletedForm = latestSubmission?.status === "SUBMITTED" || latestSubmission?.status === "COMPLETED";
-    const dataSufficient = answeredFields >= Math.max(8, Math.round(activeReportFieldCount * 0.12));
     const explanation = asRecord(property.healthScore?.explanation);
-    const answerRisk = dataSufficient ? riskFromAnswerMap(latestAnswers) : undefined;
-    const risk = dataSufficient ? Number(answerRisk ?? explanation.risk ?? 28) : 0;
-    const health = dataSufficient ? (answerRisk ? Math.max(18, Math.min(94, 100 - answerRisk)) : property.healthScore?.score ?? 74) : 0;
-    const nextAction = String(explanation.nextAction ?? latestAnswers.get("site_summary") ?? "Rapporten behöver granskas");
     const heating = String(explanation.heating ?? latestAnswers.get("heat_source_type") ?? latestAnswers.get("hot_water_type") ?? "Uppgift saknas");
 
     const formComponents = formComponentsFromAnswers(latestRawAnswers);
     const storedComponents: ReportComponent[] = property.components ?? [];
     const components = formComponents.length ? formComponents : storedComponents;
-    const highPriority = components.filter((component) => component.status === "RED" || component.riskLevel === "HIGH").length;
+    const scoring = calculateHusstatusScore(Object.fromEntries(latestRawAnswers), components, {
+      totalControlPoints: activeReportFieldCount,
+    });
+    const dataSufficient = scoring.dataSufficient;
+    const risk = dataSufficient ? scoring.riskIndex : 0;
+    const health = dataSufficient ? scoring.houseScore : 0;
+    const nextAction = String(scoring.actions[0]?.action ?? explanation.nextAction ?? latestAnswers.get("site_summary") ?? "Rapporten behöver granskas");
+    const highPriority = scoring.counts.urgent + scoring.counts.recommended;
     const componentRows = components.length
       ? components.slice(0, 10).map((component) => [
           component.type.name,
@@ -791,45 +807,33 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       .filter((component) => component.plannedReplacementYear)
       .sort((a, b) => (a.plannedReplacementYear ?? 9999) - (b.plannedReplacementYear ?? 9999))
       .slice(0, 8);
-    const planRows = plannedComponents.map((component) => [
-      component.replacementLabel ?? String(Math.max(component.plannedReplacementYear ?? currentYear, currentYear)),
-      `Åtgärda ${component.type.name}`,
-      priorityFromStatus(component.status, component.riskLevel),
-      costLabel(component.replacementCostCents),
-    ]);
-
-    const riskByCategory = new Map<string, number[]>();
-    for (const component of components) {
-      const key = component.type.category || component.system?.category || "Övrigt";
-      const current = riskByCategory.get(key) ?? [];
-      current.push(riskPercent(component.status, component.riskLevel));
-      riskByCategory.set(key, current);
-    }
-    const riskOverview: Array<[string, number]> = riskByCategory.size
-      ? Array.from(riskByCategory.entries()).map(([label, values]) => [
-          label,
-          Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
-        ] as [string, number])
-      : [];
-    const topRisks: string[][] = components.length
-      ? components
-          .slice()
-          .sort((a, b) => riskPercent(b.status, b.riskLevel) - riskPercent(a.status, a.riskLevel))
-          .slice(0, 4)
-          .map((component) => [component.type.name, priorityFromStatus(component.status, component.riskLevel)])
-      : [["Nästa åtgärd", risk >= 50 ? "Hög" : "Medel"]];
+    const planRows = scoring.componentAssessments
+      .filter((item) => item.actionNeed !== "Ingen åtgärd" || item.forecastPeriod)
+      .slice(0, 8)
+      .map((item) => [
+        item.currentAction ? item.recommendedTime : item.forecastPeriod,
+        item.currentAction ? `${item.actionNeed}: ${item.component}` : `Rekommenderad ny bedömning av ${item.component.toLowerCase()}`,
+        item.currentAction ? item.riskLevel : `Prognos ${item.forecastConfidence}`,
+        item.currentAction ? costLabel(item.costCents) : "Prognos - pris ej fastställt",
+      ]);
+    const riskOverview: Array<[string, number]> = scoring.categoryScores.map((item) => [item.label, item.riskIndex]);
+    const topRisks: string[][] = scoring.componentAssessments
+      .filter((item) => item.riskLevel !== "Låg" || item.actionNeed !== "Ingen åtgärd")
+      .sort((a, b) => b.riskScore - a.riskScore)
+      .slice(0, 4)
+      .map((item) => [item.component, item.actionNeed]);
 
     const annualControlEnabled = /^ja$/i.test(textAnswer(latestAnswers, "annual_control"));
     const quarterlyControl = textAnswer(latestAnswers, "quarterly_control");
     const deliveryMethod = textAnswer(latestAnswers, "quarterly_delivery");
     const quarterlyControlEnabled = /^(ja|erbjuds)$/i.test(quarterlyControl);
     const recommendedActions = [
-      ...(topRisks.length
-        ? topRisks.map(([name, prio]) => `${prio === "Akut" || prio === "Hög" ? "Åtgärda" : "Följ upp"} ${name}`)
+      ...(scoring.actions.length
+        ? scoring.actions.map((action) => `${action.action} - ${action.reason}`)
         : [nextAction]),
       ...(annualControlEnabled ? ["Lägg in årlig kontroll av värme, tryck, filter och säkerhetsfunktion"] : []),
       ...(quarterlyControlEnabled ? [`Skicka kvartalsvis kontrollöversyn${deliveryMethod ? ` via ${deliveryMethod.toLowerCase()}` : ""}`] : []),
-    ];
+    ].filter((item, index, list) => list.indexOf(item) === index);
 
     const rawDriftRows: Array<[string, string | number | undefined, string] | undefined> = [
       ["Utetemp live", liveWeather?.value ?? "Ej uppmätt", ""],
@@ -893,11 +897,14 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       ? Math.max(20, 100 - Math.round(waterCards.reduce((sum, [, riskName]) => sum + (riskName === "Hög" ? 68 : riskName === "Medel" ? 42 : 18), 0) / waterCards.length))
       : undefined;
     const systemStatuses: SystemStatus[] = [
-      ...riskOverview.map(([label, riskValue]) => {
-        const score = Math.max(0, Math.min(100, 100 - riskValue));
-        return { label, score, status: statusLabel(score) };
-      }),
-      ...(waterSystemScore !== undefined ? [{ label: "Vattensäkerhet", score: waterSystemScore, status: statusLabel(waterSystemScore) }] : []),
+      ...scoring.categoryScores.map((item) => ({
+        label: item.label,
+        score: item.score,
+        status: `${statusLabel(item.score)} · Risk ${item.riskLevel}`,
+      })),
+      ...(waterSystemScore !== undefined && !scoring.categoryScores.some((item) => item.label === "Vattensäkerhet")
+        ? [{ label: "Vattensäkerhet", score: waterSystemScore, status: statusLabel(waterSystemScore) }]
+        : []),
     ];
     const waterCost = waterItems.reduce((sum, item) => sum + estimateMiddleCents(item[4]), 0);
     const waterPackage = waterItems.length && waterCost
@@ -924,17 +931,17 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       };
     }).filter((bar) => bar.percent > 0);
     const priorityRows = [
-      ...planRows.slice(0, 5).map(([year, action, prio, cost], index) => [
+      ...scoring.actions.slice(0, 5).map((action, index) => [
       String(index + 1),
-      action,
-      prio === "Hög" ? "Minskar risk för skada" : "Planerad förbättring",
-      year,
-      cost,
-      prio === "Hög" ? "Rek." : "Plan",
+      action.action,
+      action.reason,
+      action.recommendedTime,
+      action.costCents ? costLabel(action.costCents) : "Pris ej fastställt",
+      action.status,
       ]),
       ...(annualControlEnabled
         ? [[
-            String(Math.min(planRows.length + 1, 6)),
+            String(Math.min(scoring.actions.length + 1, 6)),
             "Årlig kontroll av värme och VVS",
             "Förebygger driftstopp och fångar upp läckage, tryckfall och filterproblem",
             "Årligen",
@@ -1009,6 +1016,22 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       healthScoreLabel: dataSufficient ? `${health}/100` : "Ej bedömd",
       healthStatusText: dataSufficient ? statusLabel(health) : "Underlag saknas",
       riskIndexLabel: dataSufficient ? `${risk}%` : "Ej beräknat",
+      controlGradeLabel: dataSufficient ? `${scoring.controlGrade}%` : "Ej beräknad",
+      scoreFacts: dataSufficient
+        ? [
+            `${scoring.counts.urgent} akuta brister`,
+            `${scoring.counts.recommended} rekommenderade åtgärder`,
+            `${scoring.counts.watch} bevakningspunkter`,
+            `${scoring.counts.passed} kontroller utan anmärkning`,
+            `Kontrollgrad ${scoring.controlGrade}%`,
+          ]
+        : ["Fyll i fler kontroller innan scoring används."],
+      assessmentRows: scoring.componentAssessments.slice(0, 8).map((item) => [
+        item.component,
+        `${item.conditionScore}/100`,
+        item.riskLevel,
+        [...item.reasonsPositive.map((reason) => `+ ${reason}`), ...item.reasonsNegative.map((reason) => `- ${reason}`)].slice(0, 4).join(" "),
+      ]),
       systemStatuses,
       profile: [
         ["Kund", displayText(property.customer?.name, "Ej kontrollerad")],
@@ -1037,6 +1060,7 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       topRisks,
       recommendedActions,
       riskOverview,
+      riskMatrix: scoring.riskMatrix,
     };
   } catch {
     return {
@@ -1059,6 +1083,9 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       healthScoreLabel: "Ej bedömd",
       healthStatusText: "Underlag saknas",
       riskIndexLabel: "Ej beräknat",
+      controlGradeLabel: "Ej beräknad",
+      scoreFacts: [],
+      assessmentRows: [],
       systemStatuses: [],
       profile: [],
       heatRegister: [],
@@ -1078,6 +1105,7 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       topRisks: [],
       recommendedActions: ["Kontrollera databasanslutningen och försök igen."],
       riskOverview: [],
+      riskMatrix: [],
     };
   }
 }
@@ -1161,6 +1189,9 @@ export default async function HusrapportPage({
     healthScoreLabel,
     healthStatusText,
     riskIndexLabel,
+    controlGradeLabel,
+    scoreFacts,
+    assessmentRows,
     systemStatuses,
     profile,
     heatRegister,
@@ -1180,6 +1211,7 @@ export default async function HusrapportPage({
     topRisks,
     recommendedActions,
     riskOverview,
+    riskMatrix,
   } = reportData;
   const reportHref = reportId ? `/husrapport?reportId=${reportId}` : propertyId ? `/husrapport?propertyId=${propertyId}` : "/husrapport";
   const formHref = reportId ? `/admin/husstatus-form?reportId=${reportId}` : propertyId ? `/admin/husstatus-form?propertyId=${propertyId}` : "/admin/husstatus-form";
@@ -1385,9 +1417,15 @@ export default async function HusrapportPage({
             <strong>{healthScoreLabel}</strong>
             <b>{healthStatusText}</b>
             <small>Riskindex: {riskIndexLabel}</small>
+            <small>Kontrollgrad: {controlGradeLabel}</small>
           </article>
           <p className="leadText">{leadText}</p>
         </div>
+        {scoreFacts.length > 0 ? (
+          <div className="scoreFactGrid">
+            {scoreFacts.map((fact, index) => <article key={`score-fact-${index}`}>{fact}</article>)}
+          </div>
+        ) : null}
         {systemStatuses.length > 0 ? (
           <div className="systemStatusGrid">
             {systemStatuses.map((system) => (
@@ -1429,6 +1467,20 @@ export default async function HusrapportPage({
             </ol>
           </article>
         </div>
+        {assessmentRows.length > 0 ? (
+          <article className="reportCard assessmentCard">
+            <h3>Varför bedömningen ser ut så här</h3>
+            <div>
+              {assessmentRows.map(([component, condition, risk, reasons], index) => (
+                <section key={`assessment-${index}`}>
+                  <strong>{component}</strong>
+                  <span>Skick {condition} · Risk {risk}</span>
+                  <p>{reasons}</p>
+                </section>
+              ))}
+            </div>
+          </article>
+        ) : null}
       </section>
 
       <section className="reportPage">
@@ -1443,7 +1495,19 @@ export default async function HusrapportPage({
           <article className="reportCard">
             <h3>Riskmatris</h3>
             <div className="riskMatrix">
-              {Array.from({ length: 25 }, (_, index) => <span key={index}>{[3, 9, 12, 15].includes(index) ? "•" : ""}</span>)}
+              {Array.from({ length: 25 }, (_, index) => {
+                const x = index % 5;
+                const y = 4 - Math.floor(index / 5);
+                const point = riskMatrix.find((item) =>
+                  Math.min(4, Math.floor(item.probability / 20)) === x
+                  && Math.min(4, Math.floor(item.consequence / 20)) === y,
+                );
+                return (
+                  <span key={index} title={point ? `${point.component}: ${point.riskLevel}. ${point.reason}` : ""}>
+                    {point ? "•" : ""}
+                  </span>
+                );
+              })}
             </div>
           </article>
           <article className="reportCard">

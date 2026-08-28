@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { parseComponentInput } from "../../../lib/component-input-parser";
+import { calculateHusstatusScore } from "../../../lib/husstatus-scoring";
 import { buildImageChecklist, summarizeImageChecklist, type ImageChecklistStatusMap, type SectionStatusMap } from "./image-checklist";
 import { rvmFieldCount, rvmSections } from "./spec";
 
@@ -543,22 +544,34 @@ export async function completeHusstatusFormAction(formData: FormData) {
       include: { version: true },
     });
 
-    const overallStatus = typeof answers.overall_status === "string" ? answers.overall_status : undefined;
-    const calculatedRisk = riskFromAnswers(validationAnswers, overallStatus);
-    const calculatedScore = scoreFromRisk(calculatedRisk, overallStatus);
+    const scoringComponents = isSectionActive(answers, 19) && Array.isArray(answers.component_register_rows)
+      ? answers.component_register_rows as ComponentRegisterRow[]
+      : [];
+    const scoring = calculateHusstatusScore(validationAnswers, scoringComponents, {
+      totalControlPoints: activeFieldCount(answers),
+    });
     const healthExplanation = {
-      risk: calculatedRisk,
+      scoringVersion: scoring.scoringVersion,
+      risk: scoring.riskIndex,
+      riskLevel: scoring.riskLevel,
+      controlGrade: scoring.controlGrade,
       heating: validationAnswers.heat_source_type ?? validationAnswers.hot_water_type ?? "Ej angivet",
-      nextAction: answers.site_summary ?? answers.top_priority ?? "Rapporten behöver granskas",
+      nextAction: scoring.actions[0]?.action ?? answers.site_summary ?? answers.top_priority ?? "Rapporten behöver granskas",
       source: "rvm_husstatus_form",
       submissionId: submission.id,
-      sufficientData: validationEntries.length >= Math.max(8, Math.round(activeFieldCount(answers) * 0.15)),
+      sufficientData: scoring.dataSufficient,
+      counts: scoring.counts,
+      categoryScores: scoring.categoryScores,
+      componentAssessments: scoring.componentAssessments.slice(0, 30),
+      actions: scoring.actions.slice(0, 30),
+      riskMatrix: scoring.riskMatrix.slice(0, 30),
+      summary: scoring.summary,
     };
 
     await prisma.propertyHealthScore.upsert({
       where: { propertyId: property.id },
-      update: { score: calculatedScore, explanation: healthExplanation },
-      create: { companyId: COMPANY_ID, propertyId: property.id, score: calculatedScore, explanation: healthExplanation },
+      update: { score: scoring.houseScore, explanation: healthExplanation },
+      create: { companyId: COMPANY_ID, propertyId: property.id, score: scoring.houseScore, explanation: healthExplanation },
     });
 
     const createdComponents = isSectionActive(answers, 19)
@@ -579,6 +592,8 @@ export async function completeHusstatusFormAction(formData: FormData) {
               activeFields: activeFieldCount(answers),
               totalFields: rvmFieldCount,
               sectionStatuses: sectionStatuses(answers),
+              scoringVersion: scoring.scoringVersion,
+              scoring: healthExplanation,
               source: "RVM Husstatus-formulär",
               updatedExistingReport: true,
             },
@@ -602,6 +617,8 @@ export async function completeHusstatusFormAction(formData: FormData) {
               activeFields: activeFieldCount(answers),
               totalFields: rvmFieldCount,
               sectionStatuses: sectionStatuses(answers),
+              scoringVersion: scoring.scoringVersion,
+              scoring: healthExplanation,
               source: "RVM Husstatus-formulär",
             },
           },

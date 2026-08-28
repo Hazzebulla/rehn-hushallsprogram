@@ -4292,6 +4292,26 @@ td {
   font-weight: 800;
 }
 
+.scoreFactGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: -10px 0 24px;
+}
+
+.scoreFactGrid article {
+  min-height: 58px;
+  display: grid;
+  align-items: center;
+  border: 1px solid rgba(99, 199, 210, 0.24);
+  background: rgba(8, 21, 24, 0.82);
+  color: #e9f7f5;
+  padding: 12px;
+  font-size: 12px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
 .systemStatusGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4330,6 +4350,44 @@ td {
   grid-template-columns: repeat(4, 1fr);
   gap: 38px;
   margin: 28px 0 34px;
+}
+
+.assessmentCard {
+  margin-top: 18px;
+}
+
+.assessmentCard > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.assessmentCard section {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(99, 199, 210, 0.18);
+  background: rgba(6, 16, 18, 0.72);
+  padding: 12px;
+}
+
+.assessmentCard strong {
+  color: white;
+  overflow-wrap: anywhere;
+}
+
+.assessmentCard span {
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.assessmentCard p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .statusMetricGrid.secondary {
@@ -7107,6 +7165,8 @@ td {
 
   .summaryHero,
   .systemStatusGrid,
+  .scoreFactGrid,
+  .assessmentCard > div,
   .waterIssueGrid,
   .journalCadence {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7221,6 +7281,8 @@ td {
   .metricGrid,
   .summaryHero,
   .systemStatusGrid,
+  .scoreFactGrid,
+  .assessmentCard > div,
   .waterIssueGrid,
   .journalCadence,
   .quoteRequestBox label,
