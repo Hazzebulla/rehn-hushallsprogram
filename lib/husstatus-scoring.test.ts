@@ -35,6 +35,10 @@ assert.ok(propertyB.houseScore >= 78);
 assert.ok(propertyB.riskIndex > propertyA.riskIndex);
 assert.equal(propertyB.counts.urgent, 0);
 assert.ok(propertyB.counts.watch >= 1);
+assert.ok(
+  propertyB.componentAssessments.some((item) => item.actionNeed === "Planera underhåll" || item.actionNeed === "Planera byte"),
+);
+assert.ok(propertyB.componentAssessments.every((item) => item.conditionScore >= 85));
 
 const propertyC = score(
   { ...baseAnswers, safety_valve: "Säkerhetsventil fungerar inte", leak_notes: "Aktivt läckage vid koppling" },
@@ -64,8 +68,11 @@ const propertyD = score(
 assert.ok(propertyD.controlGrade < propertyA.controlGrade);
 assert.ok(propertyD.houseScore >= 55 || propertyD.houseScore === 0);
 assert.equal(propertyD.counts.urgent, 0);
+assert.ok(propertyD.counts.unchecked >= 1);
+assert.ok(propertyD.componentAssessments.every((item) => item.actionNeed !== "Akut åtgärd"));
 
 assert.notEqual(propertyA.houseScore, propertyB.houseScore);
 assert.notEqual(propertyB.riskIndex, propertyC.riskIndex);
+assert.notEqual(propertyA.riskIndex, 100 - propertyA.houseScore);
 
 console.log("husstatus-scoring tests passed");

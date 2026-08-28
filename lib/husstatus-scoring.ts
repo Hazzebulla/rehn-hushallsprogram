@@ -94,6 +94,18 @@ export type HusstatusScoringResult = {
 };
 
 type AnswerRecord = Record<string, unknown> | Map<string, unknown>;
+type ScoringRule = {
+  category?: string;
+  match: RegExp;
+  normalLifeYears: number;
+  weight: number;
+  consequence: number;
+  ageRiskWeight: number;
+  waterDamageRisk?: boolean;
+  safetyCritical?: boolean;
+};
+
+export const HUSSTATUS_SCORING_VERSION = 2;
 
 const categoryWeights: Record<string, number> = {
   Tappvatten: 1.25,
@@ -108,18 +120,19 @@ const categoryWeights: Record<string, number> = {
   Övrigt: 0.8,
 };
 
-const defaultLifeYears: Record<string, number> = {
-  värmepump: 18,
-  cirkulationspump: 15,
-  köldbärarpump: 15,
-  blandningsventil: 18,
-  säkerhetsventil: 12,
-  expansionskärl: 15,
-  varmvattenberedare: 18,
-  blandare: 20,
-  golvbrunn: 30,
-  smutsfilter: 25,
-};
+const componentRules: ScoringRule[] = [
+  { match: /värmepump|varmepump|bergvärme|bergvarme|frånluft|franluft|ctc|nibe/i, category: "Värmesystem", normalLifeYears: 18, weight: 1.25, consequence: 62, ageRiskWeight: 0.9 },
+  { match: /cirkulationspump|cirk\.?pump|alpha|upm|wilo/i, category: "Cirkulationspump", normalLifeYears: 15, weight: 1.05, consequence: 46, ageRiskWeight: 0.8 },
+  { match: /köldbärarpump|koldbararpump/i, category: "Cirkulationspump", normalLifeYears: 15, weight: 1.08, consequence: 52, ageRiskWeight: 0.85 },
+  { match: /expansionskärl|expansionskarl|tryckkärl|tryckkarl/i, category: "Värmesystem", normalLifeYears: 15, weight: 1.2, consequence: 66, ageRiskWeight: 1, safetyCritical: true },
+  { match: /säkerhetsventil|sakerhetsventil/i, category: "Säkerhetsfunktioner", normalLifeYears: 12, weight: 1.35, consequence: 78, ageRiskWeight: 0.9, safetyCritical: true },
+  { match: /blandningsventil|termostatblandare|vta/i, category: "Tappvatten", normalLifeYears: 18, weight: 1.2, consequence: 58, ageRiskWeight: 0.75, safetyCritical: true },
+  { match: /varmvattenberedare|vvc|vvb|varmvatten/i, category: "Varmvatten", normalLifeYears: 18, weight: 1.15, consequence: 58, ageRiskWeight: 0.8, waterDamageRisk: true },
+  { match: /diskmaskin|diskbänk|diskbank|kök|kok|blandare/i, category: "Vattensäkerhet", normalLifeYears: 20, weight: 1.2, consequence: 64, ageRiskWeight: 0.65, waterDamageRisk: true },
+  { match: /golvbrunn|avlopp|brunn|spillvatten/i, category: "Avlopp", normalLifeYears: 30, weight: 1.1, consequence: 70, ageRiskWeight: 0.7, waterDamageRisk: true },
+  { match: /wc|toalett|dusch|badkar|sanitet/i, category: "Sanitet", normalLifeYears: 25, weight: 0.85, consequence: 44, ageRiskWeight: 0.55, waterDamageRisk: true },
+  { match: /smutsfilter|filter|magnetit/i, category: "Värmesystem", normalLifeYears: 25, weight: 0.9, consequence: 38, ageRiskWeight: 0.45 },
+];
 
 const currentFaultPatterns = [
   /akut/i,
@@ -180,71 +193,95 @@ function componentYear(component: ScoringComponentInput) {
 }
 
 function normalLife(component: ScoringComponentInput) {
-  const name = normalized(componentName(component));
   const configured = Number(component.type?.normalLifeYears);
   if (Number.isFinite(configured) && configured > 0) return configured;
-  const match = Object.entries(defaultLifeYears).find(([key]) => name.includes(key));
-  return match?.[1] ?? 20;
+  return componentRule(component).normalLifeYears;
 }
 
 function hasCurrentFault(text: string) {
   return currentFaultPatterns.some((pattern) => pattern.test(text));
 }
 
+function componentRule(component: ScoringComponentInput): ScoringRule {
+  const haystack = `${componentName(component)} ${componentCategory(component)} ${component.brand ?? ""} ${component.model ?? ""}`;
+  return componentRules.find((rule) => rule.match.test(haystack)) ?? {
+    match: /.*/,
+    normalLifeYears: 20,
+    weight: categoryWeights[componentCategory(component)] ?? categoryWeights.Övrigt,
+    consequence: 42,
+    ageRiskWeight: 0.6,
+  };
+}
+
+function componentWeight(component: ScoringComponentInput) {
+  const rule = componentRule(component);
+  return rule.weight * (categoryWeights[componentCategory(component)] ?? categoryWeights[rule.category ?? "Övrigt"] ?? categoryWeights.Övrigt);
+}
+
+function statusEvidence(text: string) {
+  const unchecked = /ej kontrollerat|ej atkomligt|ej åtkomligt|okant|okänt|vet inte|uppgift saknas|saknas uppgift|inte kontrollerad/.test(text);
+  const verifiedGood = /god|bra|ok|fungerar|kontrollerat|testad|tät|tat|inga synliga|normalt|green|low/.test(text);
+  const followUp = /medel|normal|bevaka|kontrollera|osaker|osäker|anmärkning|avvikelse|brist|rekommenderas|yellow|orange/.test(text);
+  const bad = hasCurrentFault(text) || /red|high|critical|hög|hog|kritisk|bör bytas|bor bytas|byte snarast/.test(text);
+  return { unchecked, verifiedGood, followUp, bad };
+}
+
 function assessComponent(component: ScoringComponentInput, index: number, currentYear: number): ComponentAssessment {
   const name = componentName(component);
   const category = componentCategory(component);
   const text = statusText(component);
+  const rule = componentRule(component);
   const year = componentYear(component);
   const age = year ? Math.max(0, currentYear - year) : undefined;
   const life = normalLife(component);
   const ageRatio = age === undefined ? undefined : age / life;
   const positives: string[] = [];
   const negatives: string[] = [];
+  const evidence = statusEvidence(text);
 
-  let condition = 78;
-  if (/god|bra|ok|fungerar|kontrollerat|green|low/.test(text)) {
+  let condition = 82;
+  if (evidence.verifiedGood) {
     condition = 90;
     positives.push("Funktion eller skick är registrerat som godkänt.");
   }
-  if (/medel|normal|bevaka|yellow|orange/.test(text)) {
+  if (evidence.unchecked) {
+    condition = Math.min(condition, 80);
+    negatives.push("Kontrollpunkten är inte verifierad och påverkar främst kontrollgraden.");
+  }
+  if (evidence.followUp) {
     condition = 74;
     negatives.push("Komponenten är markerad för uppföljning.");
   }
-  if (/kontrollera|avvikelse|brist|rekommenderas|unknown|grey/.test(text)) {
-    condition = 62;
-    negatives.push("Det finns avvikelse eller osäker kontrollpunkt.");
-  }
-  if (hasCurrentFault(text) || /red|high|critical|hög|kritisk/.test(text)) {
-    condition = 38;
+  if (evidence.bad) {
+    condition = rule.safetyCritical || rule.waterDamageRisk ? 34 : 42;
     negatives.push("Faktisk brist eller tydlig risk är noterad.");
   }
 
   if (age !== undefined) {
     positives.push(`Installationsår ${year} är registrerat.`);
-    if (ageRatio !== undefined && ageRatio > 1.15 && condition >= 82) {
-      condition -= 8;
+    if (ageRatio !== undefined && ageRatio > 1.25) {
+      if (!evidence.verifiedGood) condition -= 7;
+      else condition -= 3;
       negatives.push(`Komponenten är äldre än normal teknisk livslängd (${age} år).`);
-    } else if (ageRatio !== undefined && ageRatio > 0.8) {
-      if (condition >= 82) condition -= 4;
+    } else if (ageRatio !== undefined && ageRatio > 0.85) {
+      condition -= evidence.verifiedGood ? 2 : 4;
       negatives.push(`Komponenten närmar sig normal teknisk livslängd (${age} år).`);
     }
   } else {
     negatives.push("Ålder saknas och prognosen blir osäkrare.");
   }
 
-  const categoryWeight = categoryWeights[category] ?? categoryWeights.Övrigt;
-  const consequenceBase = /säker|expansion|vatten|tapp|varmvatten|avlopp|värme|pump/i.test(`${name} ${category}`) ? 52 : 38;
-  let probability = 18;
-  if (/god|bra|ok|fungerar/.test(text)) probability -= 5;
-  if (/kontrollera|avvikelse|brist|rekommenderas|medel/.test(text)) probability += 18;
-  if (hasCurrentFault(text)) probability += 42;
-  if (ageRatio !== undefined && ageRatio > 1.15) probability += 14;
-  else if (ageRatio !== undefined && ageRatio > 0.8) probability += 8;
-  if (age === undefined) probability += 6;
+  let probability = 16;
+  if (evidence.verifiedGood) probability -= 6;
+  if (evidence.unchecked) probability += 5;
+  if (evidence.followUp) probability += 16;
+  if (evidence.bad) probability += rule.safetyCritical || rule.waterDamageRisk ? 48 : 38;
+  if (ageRatio !== undefined && ageRatio > 1.25) probability += 18 * rule.ageRiskWeight;
+  else if (ageRatio !== undefined && ageRatio > 0.85) probability += 10 * rule.ageRiskWeight;
+  if (age === undefined) probability += 5;
 
-  const consequence = clamp(consequenceBase * categoryWeight, 10, 95);
-  const riskScore = clamp((probability * 0.58) + (consequence * 0.42), 3, 96);
+  const consequence = clamp(rule.consequence * (rule.safetyCritical ? 1.08 : 1), 10, 95);
+  const riskScore = clamp((probability * 0.62) + (consequence * 0.38), 3, 96);
   const level = riskLevel(riskScore);
   const score = clamp(condition, 10, 98);
 
@@ -255,18 +292,24 @@ function assessComponent(component: ScoringComponentInput, index: number, curren
     actionNeed = "Akut åtgärd";
     recommendedTime = "Omgående";
     currentAction = true;
-  } else if (level === "Hög" && hasCurrentFault(text)) {
+  } else if (level === "Hög" && evidence.bad) {
     actionNeed = "Åtgärda";
     recommendedTime = "Snarast";
     currentAction = true;
-  } else if (level === "Hög") {
+  } else if (evidence.followUp && level === "Hög") {
     actionNeed = "Kontroll rekommenderas";
     recommendedTime = "Inom 3 månader";
-  } else if (level === "Medel" && ageRatio !== undefined && ageRatio > 0.8) {
-    actionNeed = "Bevaka";
-    recommendedTime = "Inom 12 månader";
-  } else if (level === "Medel") {
+  } else if (evidence.unchecked) {
     actionNeed = "Kontroll rekommenderas";
+    recommendedTime = "Inom 12 månader";
+  } else if (ageRatio !== undefined && ageRatio > 1.25) {
+    actionNeed = "Planera byte";
+    recommendedTime = "1-3 år";
+  } else if (ageRatio !== undefined && ageRatio > 0.85) {
+    actionNeed = "Planera underhåll";
+    recommendedTime = "3-5 år";
+  } else if (level === "Medel") {
+    actionNeed = "Bevaka";
     recommendedTime = "Inom 12 månader";
   }
 
@@ -279,7 +322,7 @@ function assessComponent(component: ScoringComponentInput, index: number, curren
     : forecastStart <= currentYear + 3
       ? `${Math.max(currentYear, forecastStart)}-${Math.max(currentYear, forecastStart) + 2}`
       : `${forecastStart}-${forecastStart + 4}`;
-  const forecastConfidence = year && component.model ? "Medel" : year ? "Låg" : "Låg";
+  const forecastConfidence = year && component.model && (evidence.verifiedGood || evidence.bad || evidence.followUp) ? "Hög" : year ? "Medel" : "Låg";
 
   if (!positives.length) positives.push("Ingen akut brist är registrerad.");
 
@@ -298,7 +341,7 @@ function assessComponent(component: ScoringComponentInput, index: number, curren
     costCents: Number(component.replacementCostCents ?? 0) || 0,
     reasonsPositive: positives,
     reasonsNegative: negatives,
-    explanation: `${name}: skick ${score}/100, risk ${level}.`,
+    explanation: `${name}: skick ${score}/100, risk ${level}, åtgärdsbehov ${actionNeed.toLowerCase()}.`,
   };
 }
 
@@ -309,6 +352,8 @@ function answerSignals(answers: AnswerRecord) {
   let negativeSignals = 0;
   let seriousSignals = 0;
   let positiveSignals = 0;
+  let measurementOk = 0;
+  let measurementIssues = 0;
 
   for (const [key, value] of entries) {
     if (key.endsWith("__photos") || key.endsWith("__source") || key === "section_statuses" || key === "signatures") continue;
@@ -319,9 +364,18 @@ function answerSignals(answers: AnswerRecord) {
     if (/akut|lackage|vattenskada|tryckfall|ej funger|trasig|otat/.test(text)) seriousSignals += 1;
     if (/avvikelse|brist|rekommenderas|bor bytas|hog|medel/.test(text)) negativeSignals += 1;
     if (/god|bra|ok|finns|kontrollerat|nej/.test(text)) positiveSignals += 1;
+
+    const numeric = Number(String(value).replace(",", "."));
+    if (Number.isFinite(numeric)) {
+      if (/nearest_tap|furthest_tap|vv|varmvatten/i.test(key)) {
+        if (numeric >= 50 && numeric <= 62) measurementOk += 1;
+        else measurementIssues += 1;
+      }
+      if (/supply_temp|return_temp|brine|outdoor_temp|system_pressure|pressure/i.test(key)) measurementOk += 1;
+    }
   }
 
-  return { answered, unchecked, negativeSignals, seriousSignals, positiveSignals };
+  return { answered, unchecked, negativeSignals, seriousSignals, positiveSignals, measurementOk, measurementIssues };
 }
 
 function uniqueActions(assessments: ComponentAssessment[]): ScoringAction[] {
@@ -363,8 +417,9 @@ function categoryScores(assessments: ComponentAssessment[]): CategoryScore[] {
 
   return Array.from(grouped.entries())
     .map(([label, items]) => {
-      const score = clamp(items.reduce((sum, item) => sum + item.conditionScore, 0) / items.length);
-      const risk = clamp(items.reduce((sum, item) => sum + item.riskScore, 0) / items.length);
+      const scoreWeight = items.reduce((sum, item) => sum + (categoryWeights[item.category] ?? categoryWeights.Övrigt), 0);
+      const score = clamp(items.reduce((sum, item) => sum + item.conditionScore * (categoryWeights[item.category] ?? categoryWeights.Övrigt), 0) / scoreWeight);
+      const risk = clamp(items.reduce((sum, item) => sum + item.riskScore * (categoryWeights[item.category] ?? categoryWeights.Övrigt), 0) / scoreWeight);
       return { label, score, riskIndex: risk, riskLevel: riskLevel(risk), count: items.length };
     })
     .sort((a, b) => b.riskIndex - a.riskIndex);
@@ -383,20 +438,20 @@ export function calculateHusstatusScore(
   const dataSufficient = signals.answered >= Math.max(6, Math.round(totalControlPoints * 0.1)) || assessments.length >= 2;
 
   const weightedCondition = assessments.length
-    ? assessments.reduce((sum, item) => sum + item.conditionScore * (categoryWeights[item.category] ?? categoryWeights.Övrigt), 0)
-      / assessments.reduce((sum, item) => sum + (categoryWeights[item.category] ?? categoryWeights.Övrigt), 0)
+    ? assessments.reduce((sum, item, index) => sum + item.conditionScore * componentWeight(components[index] ?? item), 0)
+      / assessments.reduce((sum, item, index) => sum + componentWeight(components[index] ?? item), 0)
     : 78;
-  const observationPenalty = signals.seriousSignals * 7 + signals.negativeSignals * 2 - signals.positiveSignals * 0.35;
+  const observationPenalty = signals.seriousSignals * 7 + signals.negativeSignals * 1.8 + signals.measurementIssues * 4 - signals.positiveSignals * 0.25 - signals.measurementOk * 0.8;
   const houseScore = dataSufficient
     ? clamp(weightedCondition - observationPenalty - Math.max(0, 70 - controlGrade) * 0.08, 18, 97)
     : 0;
 
   const componentRisk = assessments.length
-    ? assessments.reduce((sum, item) => sum + item.riskScore * (categoryWeights[item.category] ?? categoryWeights.Övrigt), 0)
-      / assessments.reduce((sum, item) => sum + (categoryWeights[item.category] ?? categoryWeights.Övrigt), 0)
+    ? assessments.reduce((sum, item, index) => sum + item.riskScore * componentWeight(components[index] ?? item), 0)
+      / assessments.reduce((sum, item, index) => sum + componentWeight(components[index] ?? item), 0)
     : 18;
-  const answerRisk = signals.seriousSignals * 13 + signals.negativeSignals * 4 + signals.unchecked * 1.5;
-  const riskIndex = dataSufficient ? clamp(componentRisk * 0.68 + answerRisk * 0.32, 3, 96) : 0;
+  const answerRisk = signals.seriousSignals * 14 + signals.negativeSignals * 3.6 + signals.measurementIssues * 7 + signals.unchecked * 1.1 - signals.measurementOk * 0.7;
+  const riskIndex = dataSufficient ? clamp(componentRisk * 0.72 + answerRisk * 0.28, 3, 96) : 0;
   const actions = uniqueActions(assessments);
   const passed = assessments.filter((item) => item.riskLevel === "Låg" && item.conditionScore >= 80).length;
   const urgent = actions.filter((item) => item.status === "Akut").length;
@@ -405,7 +460,7 @@ export function calculateHusstatusScore(
   const cats = categoryScores(assessments);
 
   return {
-    scoringVersion: 2,
+    scoringVersion: HUSSTATUS_SCORING_VERSION,
     houseScore,
     riskIndex,
     riskLevel: riskLevel(riskIndex),
