@@ -152,7 +152,7 @@ export default function ReportsView({
     setMailPreview((current) => current ? { ...current, ...patch } : current);
   }
 
-  async function submitMail(action: "draft" | "send") {
+  async function submitMail(action: "draft" | "send" | "publish") {
     if (!mailReportId || !mailPreview) return;
     setMailSending(true);
     setMailMessage("");
@@ -172,7 +172,12 @@ export default function ReportsView({
       });
       const payload = await response.json() as { message?: string };
       if (!response.ok) throw new Error(payload.message ?? "Åtgärden kunde inte slutföras.");
-      setMailMessage(payload.message ?? (action === "send" ? "Sammanfattningen är skickad." : "Utkastet sparades."));
+      if (action === "publish") {
+        const preview = payload as SummaryMailPreview & { message?: string };
+        setMailPreview(preview);
+        setMailIncludeReportLink(preview.reportPublished);
+      }
+      setMailMessage(payload.message ?? (action === "send" ? "Sammanfattningen är skickad." : action === "publish" ? "Rapporten publicerades." : "Utkastet sparades."));
       if (action === "send") {
         await openMailPreview(mailReportId, mailTemplate);
       }
@@ -294,7 +299,10 @@ export default function ReportsView({
                 </div>
 
                 {!mailPreview.reportPublished ? (
-                  <p className="mailWarning">Rapporten är inte publicerad ännu. Skicka utan rapportlänk eller publicera rapporten först.</p>
+                  <div className="mailWarning mailWarningSplit">
+                    <span>Rapporten är inte publicerad ännu. Skicka utan rapportlänk eller publicera rapporten först.</span>
+                    <button disabled={mailSending} onClick={() => submitMail("publish")} type="button">Publicera och fortsätt</button>
+                  </div>
                 ) : null}
                 {mailPreview.latestMail?.changedSinceLastSend ? (
                   <p className="mailWarning">Rapporten har ändrats sedan senaste kundutskicket.</p>

@@ -1993,6 +1993,28 @@ td {
   font-weight: 850;
 }
 
+.mailWarningSplit {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mailWarningSplit span {
+  min-width: 0;
+}
+
+.mailWarningSplit button {
+  min-height: 36px;
+  border: 1px solid #f0c445;
+  background: transparent;
+  color: #f0c445;
+  padding: 0 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .mailOption {
   display: flex;
   gap: 9px;
@@ -7522,6 +7544,10 @@ td {
   }
 
   .mailModalActions {
+    display: grid;
+  }
+
+  .mailWarningSplit {
     display: grid;
   }
 

@@ -143,10 +143,53 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!report) return NextResponse.json({ message: "Rapport saknas." }, { status: 404 });
 
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-  const action = body.action === "send" ? "send" : "draft";
+  const action = body.action === "send" ? "send" : body.action === "publish" ? "publish" : "draft";
   const template = templateFrom(body.template);
   const includeReportLink = body.includeReportLink !== false;
   const attachPdf = body.attachPdf === true;
+
+  if (action === "publish") {
+    const published = await prisma.houseReport.update({
+      where: { id: report.id },
+      data: {
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+      },
+      include: {
+        property: {
+          include: {
+            customer: true,
+            healthScore: true,
+          },
+        },
+        mailLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        },
+      },
+    });
+    const draft = buildDraft(request, published, template, true);
+    return NextResponse.json({
+      ...draft,
+      customerName: published.property.customer.name,
+      propertyLabel: published.property.propertyNo || published.property.address,
+      reportStatus: published.status,
+      latestMail: published.mailLogs[0]
+        ? {
+            sentAt: published.mailLogs[0].sentAt?.toISOString() ?? null,
+            createdAt: published.mailLogs[0].createdAt.toISOString(),
+            status: published.mailLogs[0].status,
+            subject: published.mailLogs[0].subject,
+            reportVersion: published.mailLogs[0].reportVersion,
+            changedSinceLastSend: Boolean(published.mailLogs[0].reportVersion && published.mailLogs[0].reportVersion !== published.reportVersion),
+          }
+        : null,
+      pdfAvailable: true,
+      pdfUrl: `${appOrigin(request)}/api/husrapport/form-data-pdf?propertyId=${published.propertyId}`,
+      message: "Rapporten publicerades. Kundlänken är nu med i sammanfattningen.",
+    });
+  }
+
   const generated = buildDraft(request, report, template, includeReportLink);
   const recipient = String(body.recipient ?? generated.recipient).trim().toLowerCase();
   const subject = String(body.subject ?? generated.subject).trim();
