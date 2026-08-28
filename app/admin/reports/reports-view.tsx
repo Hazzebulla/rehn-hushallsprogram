@@ -128,8 +128,15 @@ export default function ReportsView({
     setMailLoading(true);
     setMailMessage("");
     try {
-      const response = await fetch(`/api/admin/reports/${reportId}/mail-summary?template=${template}`, { cache: "no-store" });
+      const response = await fetch(`/api/admin/reports/${reportId}/mail-summary?template=${template}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
       const payload = await response.json() as SummaryMailPreview | { message?: string };
+      if (response.status === 401) {
+        window.location.href = `/login?next=${encodeURIComponent("/admin/reports")}`;
+        return;
+      }
       if (!response.ok) throw new Error("message" in payload ? payload.message : "Mailet kunde inte förberedas.");
       const preview = payload as SummaryMailPreview;
       setMailPreview(preview);
@@ -159,6 +166,7 @@ export default function ReportsView({
     try {
       const response = await fetch(`/api/admin/reports/${mailReportId}/mail-summary`, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
@@ -171,6 +179,10 @@ export default function ReportsView({
         }),
       });
       const payload = await response.json() as { message?: string };
+      if (response.status === 401) {
+        window.location.href = `/login?next=${encodeURIComponent("/admin/reports")}`;
+        return;
+      }
       if (!response.ok) throw new Error(payload.message ?? "Åtgärden kunde inte slutföras.");
       if (action === "publish") {
         const preview = payload as SummaryMailPreview & { message?: string };

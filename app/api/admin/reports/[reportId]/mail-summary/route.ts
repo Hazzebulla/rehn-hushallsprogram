@@ -18,6 +18,10 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function accessDenied(message: string, status = 403) {
+  return NextResponse.json({ message }, { status });
+}
+
 function appOrigin(request: NextRequest) {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   if (configured) return configured;
@@ -102,9 +106,9 @@ function buildDraft(request: NextRequest, report: NonNullable<Awaited<ReturnType
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const session = await getCurrentSessionUser();
-  if (!session || session.companyId !== COMPANY_ID || session.role === "CUSTOMER") {
-    return NextResponse.json({ message: "Åtkomst nekad." }, { status: 403 });
-  }
+  if (!session) return accessDenied("Du är inte inloggad. Logga in igen för att maila sammanfattningen.", 401);
+  if (session.companyId !== COMPANY_ID) return accessDenied("Åtkomst nekad: fel organisation.");
+  if (session.role === "CUSTOMER") return accessDenied("Åtkomst nekad: kundkonton kan inte skicka rapportmail.");
 
   const { reportId } = await context.params;
   const report = await loadReport(reportId);
@@ -134,9 +138,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const session = await getCurrentSessionUser();
-  if (!session || session.companyId !== COMPANY_ID || session.role === "CUSTOMER") {
-    return NextResponse.json({ message: "Åtkomst nekad." }, { status: 403 });
-  }
+  if (!session) return accessDenied("Du är inte inloggad. Logga in igen för att maila sammanfattningen.", 401);
+  if (session.companyId !== COMPANY_ID) return accessDenied("Åtkomst nekad: fel organisation.");
+  if (session.role === "CUSTOMER") return accessDenied("Åtkomst nekad: kundkonton kan inte skicka rapportmail.");
 
   const { reportId } = await context.params;
   const report = await loadReport(reportId);
