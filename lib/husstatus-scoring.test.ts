@@ -50,6 +50,7 @@ const propertyC = score(
 assert.ok(propertyC.riskIndex > propertyB.riskIndex);
 assert.ok(propertyC.counts.urgent + propertyC.counts.recommended >= 1);
 assert.ok(propertyC.houseScore < propertyA.houseScore);
+assert.ok(new Set(propertyC.categoryScores.map((item) => item.score)).size > 1);
 
 const propertyD = score(
   {
@@ -70,6 +71,23 @@ assert.ok(propertyD.houseScore >= 55 || propertyD.houseScore === 0);
 assert.equal(propertyD.counts.urgent, 0);
 assert.ok(propertyD.counts.unchecked >= 1);
 assert.ok(propertyD.componentAssessments.every((item) => item.actionNeed !== "Akut åtgärd"));
+
+const propertyE = score(
+  { ...baseAnswers, nearest_tap_c: "42", furthest_tap_c: "39" },
+  [
+    { typeName: "Blandningsventil", category: "Tappvatten", brand: "ESBE", model: "VTA323", installedYear: "2023", status: "God", replacementCostCents: 0 },
+    { typeName: "Varmvattenberedare", category: "Varmvatten", brand: "NIBE", model: "VPB", installedYear: "2023", status: "God", replacementCostCents: 0 },
+  ],
+);
+const propertyF = score(
+  { ...baseAnswers, nearest_tap_c: "52", furthest_tap_c: "51" },
+  [
+    { typeName: "Blandningsventil", category: "Tappvatten", brand: "ESBE", model: "VTA323", installedYear: "2023", status: "God", replacementCostCents: 0 },
+    { typeName: "Varmvattenberedare", category: "Varmvatten", brand: "NIBE", model: "VPB", installedYear: "2023", status: "God", replacementCostCents: 0 },
+  ],
+);
+assert.ok(propertyE.riskIndex > propertyF.riskIndex);
+assert.ok(propertyE.houseScore < propertyF.houseScore);
 
 assert.notEqual(propertyA.houseScore, propertyB.houseScore);
 assert.notEqual(propertyB.riskIndex, propertyC.riskIndex);

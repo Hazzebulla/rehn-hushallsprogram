@@ -106,6 +106,7 @@ type ScoringRule = {
 };
 
 export const HUSSTATUS_SCORING_VERSION = 2;
+const BASE_UNVERIFIED_CONDITION_SCORE = 82;
 
 const categoryWeights: Record<string, number> = {
   Tappvatten: 1.25,
@@ -239,7 +240,7 @@ function assessComponent(component: ScoringComponentInput, index: number, curren
   const negatives: string[] = [];
   const evidence = statusEvidence(text);
 
-  let condition = 82;
+  let condition = BASE_UNVERIFIED_CONDITION_SCORE;
   if (evidence.verifiedGood) {
     condition = 90;
     positives.push("Funktion eller skick är registrerat som godkänt.");

@@ -418,14 +418,6 @@ function estimateMiddleCents(label: string) {
   return average * 100;
 }
 
-function riskPercent(status: string, riskLevel: string) {
-  if (status === "RED" || riskLevel === "HIGH") return 82;
-  if (status === "ORANGE") return 64;
-  if (status === "YELLOW" || riskLevel === "MEDIUM") return 46;
-  if (status === "GREEN" || riskLevel === "LOW") return 18;
-  return 28;
-}
-
 function componentStatusFromText(value: string): { status: string; riskLevel: string } {
   const normalized = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   if (/rod|hog|akut|snar|bor bytas|ska bytas/.test(normalized)) return { status: "RED", riskLevel: "HIGH" };
@@ -473,21 +465,6 @@ function formComponentsFromAnswers(rawAnswers: Map<string, unknown>): ReportComp
         system: { name: systemName, category },
       };
     });
-}
-
-function riskFromAnswerMap(answers: Map<string, string>) {
-  if (!answers.size) return undefined;
-  let risk = 18;
-
-  for (const text of answers.values()) {
-    const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    if (/akut|hog|bor bytas|lackage|vattenskada|tryckfall/.test(normalized)) risk += 9;
-    if (/avvikelse|saknas|rekommenderas|brist|fuktrisk|otat|underlagg saknas/.test(normalized)) risk += 6;
-    if (/medel|planerad|periodvis|ej kontrollerat|okant/.test(normalized)) risk += 3;
-    if (/god|bra|ok|finns|kontrollerat|nej/.test(normalized)) risk -= 2;
-  }
-
-  return Math.max(8, Math.min(92, Math.round(risk)));
 }
 
 async function getReportProperties(): Promise<ReportPropertyOption[]> {

@@ -165,7 +165,13 @@ function matchRule(line: string) {
 function extractModel(line: string, rule?: ComponentRule) {
   if (!rule?.modelPattern) return "";
   const match = line.match(rule.modelPattern);
-  return match?.[1] ? tidy(match[1]).toUpperCase().replace(/\s?XE$/, " XE") : "";
+  return match?.[1]
+    ? tidy(match[1])
+        .replace(/\b(?:19|20)\d{2}\b/g, "")
+        .trim()
+        .toUpperCase()
+        .replace(/\s?XE$/, " XE")
+    : "";
 }
 
 function matchProduct(row: ParsedComponentInputRow, products: ComponentProductOption[]) {
@@ -228,6 +234,8 @@ function parseFreeTextRow(line: string, products: ComponentProductOption[]): Par
     confidence.installedYear = 0.65;
   } else if (year.value) {
     confidence.installedYear = 0.98;
+  } else if (rule) {
+    warnings.push("Årtal saknas och lämnas tomt.");
   }
   if (!model && brand) warnings.push("Modell saknas eller kunde inte tolkas säkert.");
   if (!serialNo && /\bserie|serienr|serienummer|serial|sn\b/i.test(line)) warnings.push("Serienummer nämns men kunde inte tolkas säkert.");

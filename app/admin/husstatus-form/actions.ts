@@ -318,29 +318,6 @@ function scoreFromStatus(status?: string) {
   return 74;
 }
 
-function riskFromStatus(status?: string) {
-  if (status === "God") return 14;
-  if (status === "Normal") return 28;
-  if (status === "Brister att planera") return 46;
-  if (status === "Snar åtgärd") return 68;
-  if (status === "Akut utredning") return 84;
-  return 28;
-}
-
-function stringsFromAnswer(value: Answers[string]): string[] {
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => {
-      if (typeof item === "string") return [item];
-      if ("dataUrl" in item) return [];
-      return Object.entries(item)
-        .filter(([key]) => key !== "photos")
-        .map(([, cell]) => String(cell));
-    });
-  }
-  if (value && typeof value === "object") return Object.values(value).map((item) => String(item));
-  return [value];
-}
-
 function photoCountForAnswer(value: Answers[string] | undefined) {
   return Array.isArray(value) && value.every(isPhoto) ? value.length : 0;
 }
@@ -348,27 +325,6 @@ function photoCountForAnswer(value: Answers[string] | undefined) {
 function imageChecklistStatuses(value: Answers[string] | undefined): ImageChecklistStatusMap {
   if (!value || Array.isArray(value) || typeof value !== "object") return {};
   return value as ImageChecklistStatusMap;
-}
-
-function riskFromAnswers(answers: Answers, status?: string) {
-  let risk = riskFromStatus(status);
-
-  for (const text of Object.values(answers).flatMap(stringsFromAnswer)) {
-    const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    if (/akut|hog|bor bytas|lackage|vattenskada|tryckfall/.test(normalized)) risk += 9;
-    if (/avvikelse|saknas|rekommenderas|brist|fuktrisk|otat|underlagg saknas/.test(normalized)) risk += 6;
-    if (/medel|planerad|periodvis|ej kontrollerat|okant/.test(normalized)) risk += 3;
-    if (/god|bra|ok|finns|kontrollerat|nej/.test(normalized)) risk -= 2;
-  }
-
-  return Math.max(8, Math.min(92, Math.round(risk)));
-}
-
-function scoreFromRisk(risk: number, status?: string) {
-  if (status) {
-    return Math.max(18, Math.min(94, Math.round(scoreFromStatus(status) * 0.55 + (100 - risk) * 0.45)));
-  }
-  return Math.max(18, Math.min(94, 100 - risk));
 }
 
 function statusFromText(value: string): "GREEN" | "YELLOW" | "ORANGE" | "RED" | "GREY" {

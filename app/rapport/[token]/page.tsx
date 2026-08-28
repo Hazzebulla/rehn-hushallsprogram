@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "../../../lib/prisma";
-import { isPublishedReportStatus } from "../../../lib/public-report-access";
+import { canViewPublicReport } from "../../../lib/public-report-access";
 import HusrapportPage from "../../husrapport/page";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ export default async function PublicReportPage({ params }: PublicReportPageProps
     },
   });
 
-  if (!report || report.companyId !== "org_rehn_vvs" || !report.publicAccessEnabled || !isPublishedReportStatus(report.status)) {
+  if (!report || !canViewPublicReport(token, report)) {
     return <UnavailableReport />;
   }
 

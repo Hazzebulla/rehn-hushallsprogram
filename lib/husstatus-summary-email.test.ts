@@ -6,7 +6,7 @@ const baseInput = {
   recipient: "kenneth@example.se",
   propertyLabel: "Skillinge 694",
   reportPublished: true,
-  reportUrl: "https://example.se/husrapport?reportId=rep_a",
+  reportUrl: "https://example.se/rapport/rvm_public_token",
   reportVersion: 3,
   healthScore: 83,
   riskLevel: "Låg",
@@ -36,7 +36,8 @@ assert.equal(standard.recipient, "kenneth@example.se");
 assert.equal(standard.subject, "Din Husstatus – Skillinge 694");
 assert.match(standard.bodyText, /Inga akuta brister identifierades/);
 assert.match(standard.bodyText, /Blandningsventil/);
-assert.match(standard.bodyText, /https:\/\/example\.se\/husrapport/);
+assert.match(standard.bodyText, /https:\/\/example\.se\/rapport\/rvm_public_token/);
+assert.doesNotMatch(standard.bodyText, /reportId|\/admin\//);
 assert.doesNotMatch(standard.bodyText, /Anna Andersson/);
 
 const unpublished = buildHusstatusSummaryEmail({

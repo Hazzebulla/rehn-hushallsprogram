@@ -11,6 +11,26 @@ export function isPublishedReportStatus(status: string | null | undefined) {
   return PUBLISHED_STATUSES.has(String(status ?? ""));
 }
 
+export function canViewPublicReport(
+  requestedToken: string | null | undefined,
+  report: {
+    publicAccessToken?: string | null;
+    publicAccessEnabled?: boolean | null;
+    status?: string | null;
+    companyId?: string | null;
+  } | null | undefined,
+  companyId = "org_rehn_vvs",
+) {
+  return Boolean(
+    requestedToken
+      && report
+      && report.companyId === companyId
+      && report.publicAccessEnabled
+      && report.publicAccessToken === requestedToken
+      && isPublishedReportStatus(report.status),
+  );
+}
+
 export function publicReportPath(token: string | null | undefined) {
   return token ? `/rapport/${encodeURIComponent(token)}` : "";
 }
