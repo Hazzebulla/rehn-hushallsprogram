@@ -13,6 +13,20 @@ async function getCustomers(): Promise<{ customers: CustomerVm[]; databaseOnline
       where: { companyId: "org_rehn_vvs" },
       include: {
         portalAccount: true,
+        mailLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 6,
+          select: {
+            id: true,
+            recipient: true,
+            subject: true,
+            status: true,
+            reportVersion: true,
+            sentBy: true,
+            sentAt: true,
+            createdAt: true,
+          },
+        },
         properties: {
           include: {
             healthScore: true,
@@ -62,6 +76,16 @@ async function getCustomers(): Promise<{ customers: CustomerVm[]; databaseOnline
           reportCount: customer.properties.reduce((count, item) => count + item.houseReports.length, 0),
           latestReportId: customer.properties.flatMap((item) => item.houseReports)[0]?.id ?? "",
           latestReportDate: customer.properties.flatMap((item) => item.houseReports)[0]?.updatedAt.toLocaleDateString("sv-SE") ?? "",
+          mailLogs: customer.mailLogs.map((mail) => ({
+            id: mail.id,
+            recipient: mail.recipient,
+            subject: mail.subject,
+            status: mail.status,
+            reportVersion: mail.reportVersion,
+            sentBy: mail.sentBy ?? "",
+            sentAt: mail.sentAt?.toLocaleString("sv-SE") ?? "",
+            createdAt: mail.createdAt.toLocaleString("sv-SE"),
+          })),
           properties: customer.properties.map((item) => ({
             id: item.id,
             label: item.propertyNo ?? item.address,

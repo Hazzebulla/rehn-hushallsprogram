@@ -184,6 +184,7 @@ model Customer {
   portalAccount CustomerPortalAccount?
   documents     DocumentAsset[]
   gdprRequests  GdprRequest[]
+  mailLogs      CustomerMailLog[]
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 
@@ -322,6 +323,7 @@ model Property {
   projects           Project[]
   documents          DocumentAsset[]
   houseReports       HouseReport[]
+  mailLogs           CustomerMailLog[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
@@ -1182,12 +1184,41 @@ model HouseReport {
   qualityNotes  String?
   summary       Json?
   estimates     ActionEstimate[]
+  mailLogs      CustomerMailLog[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@unique([companyId, reportNo])
   @@unique([submissionId, reportVersion])
   @@index([companyId, propertyId, status])
+}
+
+model CustomerMailLog {
+  id            String      @id @default(cuid())
+  companyId     String
+  customerId    String
+  customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  propertyId    String
+  property      Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reportId      String?
+  report        HouseReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  recipient     String
+  subject       String
+  bodyText      String
+  bodyHtml      String?
+  template      String
+  reportVersion Int?
+  status        String      @default("DRAFT")
+  provider      String?
+  providerId    String?
+  sentBy        String?
+  sentAt        DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([companyId, customerId, createdAt])
+  @@index([companyId, reportId, createdAt])
+  @@index([companyId, status])
 }
 
 model CustomerPreInspectionLink {

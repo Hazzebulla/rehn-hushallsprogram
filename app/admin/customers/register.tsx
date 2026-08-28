@@ -41,6 +41,7 @@ const seedCustomers: CustomerVm[] = [
     reportCount: 1,
     latestReportId: "",
     latestReportDate: "2026-08-27",
+    mailLogs: [],
     properties: [],
   },
   {
@@ -68,6 +69,7 @@ const seedCustomers: CustomerVm[] = [
     reportCount: 0,
     latestReportId: "",
     latestReportDate: "",
+    mailLogs: [],
     properties: [],
   },
 ];
@@ -388,6 +390,7 @@ export default function CustomerRegister({
               reportCount: 0,
               latestReportId: "",
               latestReportDate: "",
+              mailLogs: [],
               properties: [],
             };
 
@@ -776,6 +779,29 @@ export default function CustomerRegister({
               <a className="buttonLink" href="/admin/properties">Lägg till fastighet</a>
               <a className="buttonLink" href="/admin/husstatus-form">Starta VVS-genomgång</a>
             </div>
+          </article>
+
+          <article className="portalPanel customerMailHistory">
+            <div className="panelTitle">
+              <h3>Mailhistorik</h3>
+              <span>{selected.mailLogs.length} utskick</span>
+            </div>
+            {selected.mailLogs.length ? (
+              <div className="mailHistoryList">
+                {selected.mailLogs.map((mail) => (
+                  <div key={mail.id}>
+                    <strong>{mail.subject}</strong>
+                    <span>{mail.sentAt || mail.createdAt} · {mail.status}</span>
+                    <small>Skickad till {mail.recipient}{mail.reportVersion ? ` · rapportversion ${mail.reportVersion}` : ""}{mail.sentBy ? ` · av ${mail.sentBy}` : ""}</small>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>Inga kundsammanfattningar har sparats eller skickats ännu.</p>
+            )}
+            {selected.latestReportId ? (
+              <a className="buttonLink" href="/admin/reports">Öppna rapportlistan för att maila sammanfattning</a>
+            ) : null}
           </article>
         </section>
       )}

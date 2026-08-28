@@ -32,6 +32,16 @@ export type CustomerVm = {
   reportCount: number;
   latestReportId: string;
   latestReportDate: string;
+  mailLogs: Array<{
+    id: string;
+    recipient: string;
+    subject: string;
+    status: string;
+    reportVersion: number | null;
+    sentBy: string;
+    sentAt: string;
+    createdAt: string;
+  }>;
   properties: Array<{
     id: string;
     label: string;
@@ -265,6 +275,7 @@ export async function createCustomerAction(input: CustomerInput): Promise<Action
         reportCount: 0,
         latestReportId: "",
         latestReportDate: "",
+        mailLogs: [],
         properties: property ? [{
           id: property.id,
           label: property.propertyNo ?? input.property,
@@ -353,6 +364,7 @@ export async function publishCustomerToPortalAction(customerId: string): Promise
         reportCount: 0,
         latestReportId: "",
         latestReportDate: "",
+        mailLogs: [],
         properties: property ? [{
           id: property.id,
           label: property.propertyNo ?? "Fastighet",

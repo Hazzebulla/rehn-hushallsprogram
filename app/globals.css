@@ -1899,6 +1899,143 @@ td {
   color: var(--muted);
 }
 
+.mailModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.mailModal {
+  width: min(860px, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(72, 214, 230, 0.42);
+  border-radius: 8px;
+  background: #071314;
+  color: var(--text);
+  padding: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+.mailTemplateTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mailTemplateTabs button,
+.primaryButton {
+  min-height: 42px;
+  border: 1px solid rgba(72, 214, 230, 0.38);
+  background: rgba(4, 12, 12, 0.72);
+  color: var(--cyan);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.mailTemplateTabs button.active,
+.primaryButton {
+  border-color: var(--cyan);
+  background: var(--cyan);
+  color: #031012;
+}
+
+.mailPreviewGrid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(260px, 1.28fr);
+  gap: 10px;
+}
+
+.mailPreviewGrid label,
+.mailBodyField {
+  display: grid;
+  gap: 7px;
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mailPreviewGrid input,
+.mailBodyField textarea {
+  width: 100%;
+  border: 1px solid rgba(72, 214, 230, 0.3);
+  background: #031012;
+  color: var(--text);
+  outline: none;
+}
+
+.mailPreviewGrid input {
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.mailBodyField textarea {
+  min-height: 340px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+.mailWarning {
+  border: 1px solid rgba(240, 196, 69, 0.62);
+  background: rgba(240, 196, 69, 0.08);
+  color: #f0c445;
+  padding: 10px 12px;
+  margin: 0;
+  font-weight: 850;
+}
+
+.mailOption {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.mailOption input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--cyan);
+}
+
+.mailHistoryMini,
+.mailHistoryList {
+  display: grid;
+  gap: 8px;
+}
+
+.mailHistoryMini,
+.mailHistoryList div {
+  border: 1px solid rgba(70, 158, 176, 0.24);
+  background: rgba(4, 12, 12, 0.42);
+  padding: 10px;
+}
+
+.mailHistoryMini span,
+.mailHistoryList span,
+.mailHistoryMini small,
+.mailHistoryList small {
+  display: block;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.mailModalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .preInspectionList div {
   grid-template-columns: 90px minmax(150px, 1fr) minmax(180px, 1.2fr) 110px 92px;
 }
@@ -7233,6 +7370,16 @@ td {
   .imageLibraryGroup header {
     display: grid;
   }
+
+  .reportCardMain {
+    grid-template-columns: 82px minmax(180px, 1fr) minmax(140px, auto);
+  }
+
+  .reportMiniStats,
+  .reportActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 760px) {
@@ -7344,6 +7491,7 @@ td {
   .reportCardMain.empty,
   .customerAnswerSummary,
   .customerAnswerGroup dl div,
+  .mailPreviewGrid,
   .systemChecks div,
   .submissionItem summary,
   .submissionMeta,
@@ -7360,6 +7508,25 @@ td {
   .roleMatrix,
   .foundationList div {
     grid-template-columns: 1fr;
+  }
+
+  .mailModal {
+    width: 100%;
+    max-height: 94vh;
+    padding: 14px;
+  }
+
+  .mailTemplateTabs,
+  .mailModalActions {
+    grid-template-columns: 1fr;
+  }
+
+  .mailModalActions {
+    display: grid;
+  }
+
+  .mailBodyField textarea {
+    min-height: 280px;
   }
 
   .imageChecklistGrid {

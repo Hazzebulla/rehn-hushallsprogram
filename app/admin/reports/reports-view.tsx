@@ -47,6 +47,32 @@ export type AdminReportVm = {
   updatedAt: string;
 };
 
+type MailTemplateVariant = "short" | "standard" | "detailed";
+
+type SummaryMailPreview = {
+  recipient: string;
+  subject: string;
+  bodyText: string;
+  reportUrl?: string;
+  reportPublished: boolean;
+  reportVersion?: number | null;
+  template: MailTemplateVariant;
+  providerConfigured: boolean;
+  customerName: string;
+  propertyLabel: string;
+  reportStatus: string;
+  latestMail?: {
+    sentAt: string | null;
+    createdAt: string;
+    status: string;
+    subject: string;
+    reportVersion: number | null;
+    changedSinceLastSend: boolean;
+  } | null;
+  pdfAvailable: boolean;
+  pdfUrl: string;
+};
+
 function statusClass(status: string) {
   if (status === "published") return "published";
   if (status === "review_required") return "review";
@@ -65,6 +91,14 @@ export default function ReportsView({
   const [detailsByReportId, setDetailsByReportId] = useState<Record<string, ReportAnswerDetails>>({});
   const [loadingReportId, setLoadingReportId] = useState<string | null>(null);
   const [errorByReportId, setErrorByReportId] = useState<Record<string, string>>({});
+  const [mailReportId, setMailReportId] = useState<string | null>(null);
+  const [mailPreview, setMailPreview] = useState<SummaryMailPreview | null>(null);
+  const [mailTemplate, setMailTemplate] = useState<MailTemplateVariant>("standard");
+  const [mailIncludeReportLink, setMailIncludeReportLink] = useState(true);
+  const [mailAttachPdf, setMailAttachPdf] = useState(false);
+  const [mailLoading, setMailLoading] = useState(false);
+  const [mailSending, setMailSending] = useState(false);
+  const [mailMessage, setMailMessage] = useState("");
 
   async function toggleCustomerAnswers(reportId: string) {
     if (openReportId === reportId) {
@@ -85,6 +119,67 @@ export default function ReportsView({
       setErrorByReportId((current) => ({ ...current, [reportId]: "Kundsvaren kunde inte hämtas just nu." }));
     } finally {
       setLoadingReportId(null);
+    }
+  }
+
+  async function openMailPreview(reportId: string, template: MailTemplateVariant = mailTemplate) {
+    setMailReportId(reportId);
+    setMailTemplate(template);
+    setMailLoading(true);
+    setMailMessage("");
+    try {
+      const response = await fetch(`/api/admin/reports/${reportId}/mail-summary?template=${template}`, { cache: "no-store" });
+      const payload = await response.json() as SummaryMailPreview | { message?: string };
+      if (!response.ok) throw new Error("message" in payload ? payload.message : "Mailet kunde inte förberedas.");
+      const preview = payload as SummaryMailPreview;
+      setMailPreview(preview);
+      setMailIncludeReportLink(preview.reportPublished);
+      setMailAttachPdf(false);
+    } catch (error) {
+      setMailPreview(null);
+      setMailMessage(error instanceof Error ? error.message : "Mailet kunde inte förberedas.");
+    } finally {
+      setMailLoading(false);
+    }
+  }
+
+  async function changeMailTemplate(template: MailTemplateVariant) {
+    if (!mailReportId) return;
+    await openMailPreview(mailReportId, template);
+  }
+
+  function updateMailPreview(patch: Partial<Pick<SummaryMailPreview, "recipient" | "subject" | "bodyText">>) {
+    setMailPreview((current) => current ? { ...current, ...patch } : current);
+  }
+
+  async function submitMail(action: "draft" | "send") {
+    if (!mailReportId || !mailPreview) return;
+    setMailSending(true);
+    setMailMessage("");
+    try {
+      const response = await fetch(`/api/admin/reports/${mailReportId}/mail-summary`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          template: mailTemplate,
+          recipient: mailPreview.recipient,
+          subject: mailPreview.subject,
+          bodyText: mailPreview.bodyText,
+          includeReportLink: mailIncludeReportLink,
+          attachPdf: mailAttachPdf,
+        }),
+      });
+      const payload = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? "Åtgärden kunde inte slutföras.");
+      setMailMessage(payload.message ?? (action === "send" ? "Sammanfattningen är skickad." : "Utkastet sparades."));
+      if (action === "send") {
+        await openMailPreview(mailReportId, mailTemplate);
+      }
+    } catch (error) {
+      setMailMessage(error instanceof Error ? error.message : "Åtgärden kunde inte slutföras.");
+    } finally {
+      setMailSending(false);
     }
   }
 
@@ -120,6 +215,9 @@ export default function ReportsView({
                   <a className="buttonLink" href={`/husrapport?reportId=${report.id}`}>Visa</a>
                   <a className="buttonLink" href={`/admin/inspection/${report.id}`}>Besiktning</a>
                   <a className="buttonLink" href={`/admin/husstatus-form?reportId=${report.id}`}>Formulär</a>
+                  <button className="buttonLink" disabled={mailLoading && mailReportId === report.id} onClick={() => openMailPreview(report.id, "standard")} type="button">
+                    {mailLoading && mailReportId === report.id ? "Förbereder..." : "Maila sammanfattning"}
+                  </button>
                   <button className="buttonLink" disabled={loadingReportId === report.id} onClick={() => toggleCustomerAnswers(report.id)} type="button">
                     {isOpen ? "Dölj kundsvar" : loadingReportId === report.id ? "Hämtar..." : "Visa kundsvar"}
                   </button>
@@ -159,6 +257,85 @@ export default function ReportsView({
               <button className="buttonLink" onClick={() => setLightbox(null)} type="button">Stäng</button>
             </figcaption>
           </figure>
+        </div>
+      ) : null}
+
+      {mailReportId ? (
+        <div className="mailModalBackdrop" onClick={() => { setMailReportId(null); setMailPreview(null); }} role="presentation">
+          <section className="mailModal" onClick={(event) => event.stopPropagation()}>
+            <div className="panelTitle">
+              <div>
+                <p className="sectionKicker">Kundutskick</p>
+                <h3>Maila sammanfattning</h3>
+              </div>
+              <button className="buttonLink" onClick={() => { setMailReportId(null); setMailPreview(null); }} type="button">Avbryt</button>
+            </div>
+
+            {mailMessage ? <p className="mailWarning">{mailMessage}</p> : null}
+            {mailLoading ? <p>Förbereder sammanfattningen...</p> : null}
+
+            {mailPreview ? (
+              <>
+                <div className="mailTemplateTabs" aria-label="Mailmall">
+                  <button className={mailTemplate === "short" ? "active" : ""} onClick={() => changeMailTemplate("short")} type="button">Kort</button>
+                  <button className={mailTemplate === "standard" ? "active" : ""} onClick={() => changeMailTemplate("standard")} type="button">Standard</button>
+                  <button className={mailTemplate === "detailed" ? "active" : ""} onClick={() => changeMailTemplate("detailed")} type="button">Detaljerad</button>
+                </div>
+
+                <div className="mailPreviewGrid">
+                  <label>
+                    <span>Mottagare</span>
+                    <input value={mailPreview.recipient} onChange={(event) => updateMailPreview({ recipient: event.target.value })} type="email" />
+                  </label>
+                  <label>
+                    <span>Ämne</span>
+                    <input value={mailPreview.subject} onChange={(event) => updateMailPreview({ subject: event.target.value })} />
+                  </label>
+                </div>
+
+                {!mailPreview.reportPublished ? (
+                  <p className="mailWarning">Rapporten är inte publicerad ännu. Skicka utan rapportlänk eller publicera rapporten först.</p>
+                ) : null}
+                {mailPreview.latestMail?.changedSinceLastSend ? (
+                  <p className="mailWarning">Rapporten har ändrats sedan senaste kundutskicket.</p>
+                ) : null}
+                {!mailPreview.providerConfigured ? (
+                  <p className="mailWarning">RESEND_API_KEY saknas. Utkast kan sparas, men riktiga mail skickas först när mailprovider är konfigurerad.</p>
+                ) : null}
+
+                <label className="mailOption">
+                  <input checked={mailIncludeReportLink} disabled={!mailPreview.reportPublished} onChange={(event) => setMailIncludeReportLink(event.target.checked)} type="checkbox" />
+                  <span>Ta med länk till fullständig Husstatus</span>
+                </label>
+                <label className="mailOption">
+                  <input checked={mailAttachPdf} disabled={!mailPreview.pdfAvailable} onChange={(event) => setMailAttachPdf(event.target.checked)} type="checkbox" />
+                  <span>Bifoga fullständig rapport som PDF</span>
+                </label>
+
+                <label className="mailBodyField">
+                  <span>Kundsammanfattning</span>
+                  <textarea value={mailPreview.bodyText} onChange={(event) => updateMailPreview({ bodyText: event.target.value })} />
+                </label>
+
+                {mailPreview.latestMail ? (
+                  <div className="mailHistoryMini">
+                    <strong>Senaste utskick</strong>
+                    <span>{mailPreview.latestMail.sentAt ?? mailPreview.latestMail.createdAt} · {mailPreview.latestMail.status}</span>
+                    <small>{mailPreview.latestMail.subject}</small>
+                  </div>
+                ) : null}
+
+                <div className="mailModalActions">
+                  <button className="buttonLink" disabled={mailSending} onClick={() => submitMail("draft")} type="button">
+                    {mailSending ? "Sparar..." : "Spara utkast"}
+                  </button>
+                  <button className="primaryButton" disabled={mailSending} onClick={() => submitMail("send")} type="button">
+                    {mailSending ? "Skickar..." : "Skicka mail"}
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </section>
         </div>
       ) : null}
     </>
