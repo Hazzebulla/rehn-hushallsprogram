@@ -99,6 +99,10 @@ const fieldSectionByKey = new Map(
   rvmSections.flatMap((section) => section.fields.map((field) => [field.key, section.id] as const)),
 );
 
+const fieldLabelByKey = new Map(
+  rvmSections.flatMap((section) => section.fields.map((field) => [field.key, field.label] as const)),
+);
+
 function sectionStatuses(answers: Answers): SectionStatusMap {
   const value = answers.section_statuses;
   return value && typeof value === "object" && !Array.isArray(value) ? value as SectionStatusMap : {};
@@ -129,6 +133,32 @@ function activeFieldCount(answers: Answers) {
   return rvmSections
     .filter((section) => isSectionActive(answers, section.id))
     .reduce((count, section) => count + section.fields.length, 0);
+}
+
+function textFromAnswers(answers: Answers) {
+  return Object.entries(activeAnswersForValidation(answers))
+    .filter(([key]) => !key.endsWith("__photos") && !key.endsWith("__source"))
+    .map(([, value]) => typeof value === "string" ? value : Array.isArray(value) ? JSON.stringify(value) : "")
+    .join(" ")
+    .toLowerCase();
+}
+
+function inferOverallStatus(answers: Answers) {
+  const text = textFromAnswers(answers);
+  if (/\bakut\b|akut utredning|vattenläcka|aktiv läcka/.test(text)) return "Akut utredning";
+  if (/snar åtgärd|bör bytas|saknas\/ej|ej godkänd|hög risk/.test(text)) return "Snar åtgärd";
+  if (/rekommenderas|anmärkning|brist|bör följas upp|medel risk/.test(text)) return "Brister att planera";
+  if (/god|ok|bra|kontrollerad/.test(text)) return "God";
+  return "Normal";
+}
+
+function completionDefaults(answers: Answers): Answers {
+  if (!isFieldActive(answers, "overall_status") || String(answers.overall_status ?? "").trim()) return answers;
+  return { ...answers, overall_status: inferOverallStatus(answers) };
+}
+
+function requiredFieldLabel(key: string) {
+  return fieldLabelByKey.get(key) ?? key;
 }
 
 function storedAnswerValue(value: unknown) {
@@ -503,7 +533,7 @@ export async function completeHusstatusFormAction(formData: FormData) {
     const target = await resolveSubmissionTarget(propertyId, reportId || undefined);
     if (!target.ok) return { ok: false, message: target.message };
     const { property } = target;
-    const answers = reportId ? enforceTargetIdentityAnswers(parsedAnswers, property) : parsedAnswers;
+    const answers = completionDefaults(reportId ? enforceTargetIdentityAnswers(parsedAnswers, property) : parsedAnswers);
 
     const entries = filledEntries(answers);
     const validationAnswers = activeAnswersForValidation(answers);
@@ -511,7 +541,7 @@ export async function completeHusstatusFormAction(formData: FormData) {
     const minimumRequired = ["customer_name", "property_address", "scope", "overall_status", "rvm_signer"];
     const missing = minimumRequired.filter((key) => isFieldActive(answers, key) && !validationEntries.some(([fieldKey]) => fieldKey === key));
     if (missing.length) {
-      return { ok: false, message: `Komplettera obligatoriska fält innan rapport skapas: ${missing.join(", ")}.` };
+      return { ok: false, message: `Komplettera obligatoriska fält innan rapport skapas: ${missing.map(requiredFieldLabel).join(", ")}.` };
     }
 
     const imageChecklist = buildImageChecklist(answers);
