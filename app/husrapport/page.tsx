@@ -1236,7 +1236,7 @@ export default async function HusrapportPage({
         <div className="reportMeta">
           <span>Rapportnummer</span>
           <strong>{reportNo}</strong>
-          <small>{formStatusLabel(formStatus)}</small>
+          <small>{publicMode ? "Publicerad kundrapport" : formStatusLabel(formStatus)}</small>
         </div>
       </section>
 
@@ -1269,7 +1269,7 @@ export default async function HusrapportPage({
         </div>
       </section>}
 
-      <section className="reportQualityBar">
+      {!publicMode && <section className="reportQualityBar">
         <div><span>Formulärversion</span><strong>{formVersion ?? "Ej låst"}</strong></div>
         <div><span>Rapportversion</span><strong>{reportVersion ?? "Ej skapad"}</strong></div>
         <div><span>Kontrolldatum</span><strong>{performedAt ?? "Ej kontrollerat"}</strong></div>
@@ -1278,7 +1278,7 @@ export default async function HusrapportPage({
         <div><span>Nästa kontroll</span><strong>{nextControl ?? "Ej angivet"}</strong></div>
         <div><span>Kvartalsöversyn</span><strong>{quarterlyControl ?? "Ej valt"}</strong></div>
         <div><span>Leverans</span><strong>{deliveryMethod ?? "Ej valt"}</strong></div>
-      </section>
+      </section>}
 
       {!publicMode && customerInformation.length > 0 && (
         <section className="customerDeclarationPanel noPrint">
