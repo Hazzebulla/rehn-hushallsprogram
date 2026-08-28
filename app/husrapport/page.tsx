@@ -1323,8 +1323,8 @@ export default async function HusrapportPage({
               <strong>{healthScoreLabel}</strong>
               <small>{healthStatusText}</small>
             </article>
-            {statusCards.slice(0, 4).map(([label, value, sub]) => (
-              <article key={label}>
+            {statusCards.slice(0, 4).map(([label, value, sub], index) => (
+              <article key={`customer-status-card-${index}`}>
                 <span>{label}</span>
                 <strong>{value}</strong>
                 <small>{sub}</small>
@@ -1342,7 +1342,7 @@ export default async function HusrapportPage({
           <article>
             <h2>Risker och nästa steg</h2>
             <ol>
-              {recommendedActions.slice(0, 5).map((action) => <li key={action}>{action}</li>)}
+              {recommendedActions.slice(0, 5).map((action, index) => <li key={`customer-action-${index}`}>{action}</li>)}
             </ol>
           </article>
         </div>
@@ -1402,8 +1402,8 @@ export default async function HusrapportPage({
           <div className="emptyReportState">Delstatus visas när komponenter eller kontrollpunkter finns registrerade.</div>
         )}
         <div className="statusMetricGrid secondary">
-          {statusCards.map(([label, value, sub, tone]) => (
-            <article className="statusMetric compact" key={label}>
+          {statusCards.map(([label, value, sub, tone], index) => (
+            <article className="statusMetric compact" key={`status-card-${index}`}>
               <div className={`thinRing ${tone}`} />
               <strong>{value}</strong>
               <span>{label}</span>
@@ -1414,8 +1414,8 @@ export default async function HusrapportPage({
         <div className="reportDuo">
           <article className="reportCard">
             <h3>Risköversikt</h3>
-            {riskOverview.map(([label, value]) => (
-              <div className="horizontalRisk" key={label}>
+            {riskOverview.map(([label, value], index) => (
+              <div className="horizontalRisk" key={`risk-overview-${index}`}>
                 <span>{label}</span>
                 <i style={{ width: `${value}%` }} />
                 <b>{value}%</b>
@@ -1425,7 +1425,7 @@ export default async function HusrapportPage({
           <article className="reportCard">
             <h3>Rekommenderade åtgärder</h3>
             <ol className="numberList">
-              {recommendedActions.slice(0, 6).map((action) => <li key={action}>{action}</li>)}
+              {recommendedActions.slice(0, 6).map((action, index) => <li key={`summary-action-${index}`}>{action}</li>)}
             </ol>
           </article>
         </div>
@@ -1450,7 +1450,7 @@ export default async function HusrapportPage({
             <h3>Topprisker</h3>
             <div className="topRisks">
               {topRisks.map(([risk, priority], index) => (
-                <div key={risk}><b>{index + 1}</b><strong>{risk}</strong><span>{priority}</span></div>
+                <div key={`top-risk-${index}`}><b>{index + 1}</b><strong>{risk}</strong><span>{priority}</span></div>
               ))}
             </div>
           </article>
@@ -1485,7 +1485,7 @@ export default async function HusrapportPage({
         <SectionHeader no="5" title="Systemdata & driftöversikt" />
         {drift.length > 0 && (
           <>
-            <div className="driftGrid">{drift.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+            <div className="driftGrid">{drift.map(([label, value], index) => <div key={`drift-${index}`}><span>{label}</span><strong>{value}</strong></div>)}</div>
             {liveWeather && <p className="weatherSource">Källa utetemperatur: {liveWeather.source}. Uppdateras automatiskt via adressen.</p>}
           </>
         )}
@@ -1508,7 +1508,7 @@ export default async function HusrapportPage({
             {technicalAssessment.length > 0 && (
               <article className="reportCard">
                 <h3>Teknisk bedömning</h3>
-                <ul className="dotList">{technicalAssessment.map((item) => <li key={item}>{item}</li>)}</ul>
+                <ul className="dotList">{technicalAssessment.map((item, index) => <li key={`technical-assessment-${index}`}>{item}</li>)}</ul>
               </article>
             )}
           </div>
@@ -1519,8 +1519,8 @@ export default async function HusrapportPage({
         <SectionHeader no="6" title="Vattensäkerhet, kök & våtrum" />
         {waterItems.length > 0 && (
           <div className="waterIssueGrid">
-            {waterItems.map(([label, observation, risk, recommendation, estimate]) => (
-              <article className={`waterIssue risk-${risk.toLowerCase()}`} key={`${label}-${observation}`}>
+            {waterItems.map(([label, observation, risk, recommendation, estimate], index) => (
+              <article className={`waterIssue risk-${risk.toLowerCase()}`} key={`water-issue-${index}`}>
                 <header>
                   <strong>{label}</strong>
                   <span>Risk: {risk}</span>
@@ -1541,8 +1541,8 @@ export default async function HusrapportPage({
         {plan.length > 0 && (
           <div className="planLayout">
             <article className="reportCard verticalPlan">
-              {plan.map(([year, action, prio, cost]) => (
-                <div className={`priority-${prio.toLowerCase()}`} key={action}>
+              {plan.map(([year, action, prio, cost], index) => (
+                <div className={`priority-${prio.toLowerCase()}`} key={`plan-row-${index}`}>
                   <time>{year}</time>
                   <strong>{action}</strong>
                   <span>{prio} prioritet</span>
@@ -1587,14 +1587,14 @@ export default async function HusrapportPage({
         )}
         {packageCards.length > 0 && (
           <div className="packageGrid">
-            {packageCards.map(([name, text, price]) => <article className="reportCard packageCard" key={name}><h3>{name}</h3><p>{text}</p><strong>{price}</strong></article>)}
+            {packageCards.map(([name, text, price], index) => <article className="reportCard packageCard" key={`package-card-${index}`}><h3>{name}</h3><p>{text}</p><strong>{price}</strong></article>)}
           </div>
         )}
         {priorityRows.length > 0 && (
           <form className="quoteRequestBox noPrint">
             <h3>Begär offert på valda åtgärder</h3>
-            {priorityRows.map(([, action, , time, cost]) => (
-              <label key={`${action}-${time}`}>
+            {priorityRows.map(([, action, , time, cost], index) => (
+              <label key={`quote-action-${index}`}>
                 <input name="quoteActions" type="checkbox" value={action} />
                 <span>{action}</span>
                 <small>{time} · {cost || "Pris ej fastställt"}</small>
@@ -1614,10 +1614,10 @@ export default async function HusrapportPage({
         </div>
         {journalDocs.length > 0 && (
           <div className="reportDuo lightDocs">
-            {journalDocs.map((doc) => (
-              <article key={doc.title}>
+            {journalDocs.map((doc, docIndex) => (
+              <article key={`journal-doc-${docIndex}`}>
                 <h3>{doc.title}</h3>
-                {doc.rows.map((row, rowIndex) => <p key={`${doc.title}-row-${rowIndex}`}>{row}</p>)}
+                {doc.rows.map((row, rowIndex) => <p key={`journal-doc-${docIndex}-row-${rowIndex}`}>{row}</p>)}
               </article>
             ))}
           </div>
