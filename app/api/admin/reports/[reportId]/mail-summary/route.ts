@@ -7,6 +7,7 @@ import {
   renderHusstatusSummaryEmailHtml,
   type MailTemplateVariant,
 } from "../../../../../../lib/husstatus-summary-email";
+import { createPublicReportToken, isPublishedReportStatus, publicReportUrl } from "../../../../../../lib/public-report-access";
 
 const COMPANY_ID = "org_rehn_vvs";
 
@@ -78,8 +79,8 @@ function buildDraft(request: NextRequest, report: NonNullable<Awaited<ReturnType
   const explanation = asRecord(report.property.healthScore?.explanation);
   const counts = asRecord(explanation.counts);
   const propertyLabel = report.property.propertyNo || report.property.address;
-  const reportPublished = report.status === "PUBLISHED" || report.status === "published";
-  const reportUrl = reportPublished && includeReportLink ? `${appOrigin(request)}/husrapport?reportId=${report.id}` : undefined;
+  const reportPublished = isPublishedReportStatus(report.status) && report.publicAccessEnabled && Boolean(report.publicAccessToken);
+  const reportUrl = reportPublished && includeReportLink ? publicReportUrl(appOrigin(request), report.publicAccessToken) : undefined;
   return buildHusstatusSummaryEmail({
     customerName: report.property.customer.name,
     recipient: report.property.customer.invoiceEmail ?? "",
@@ -147,7 +148,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!report) return NextResponse.json({ message: "Rapport saknas." }, { status: 404 });
 
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-  const action = body.action === "send" ? "send" : body.action === "publish" ? "publish" : "draft";
+  const action = body.action === "send"
+    ? "send"
+    : body.action === "publish"
+      ? "publish"
+      : body.action === "unpublish"
+        ? "unpublish"
+        : body.action === "regenerate_link"
+          ? "regenerate_link"
+          : "draft";
   const template = templateFrom(body.template);
   const includeReportLink = body.includeReportLink !== false;
   const attachPdf = body.attachPdf === true;
@@ -158,6 +167,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       data: {
         status: "PUBLISHED",
         publishedAt: new Date(),
+        publicAccessEnabled: true,
+        publicAccessToken: report.publicAccessToken ?? createPublicReportToken(),
+        publicTokenCreatedAt: report.publicAccessToken ? report.publicTokenCreatedAt ?? new Date() : new Date(),
       },
       include: {
         property: {
@@ -191,6 +203,54 @@ export async function POST(request: NextRequest, context: RouteContext) {
       pdfAvailable: true,
       pdfUrl: `${appOrigin(request)}/api/husrapport/form-data-pdf?propertyId=${published.propertyId}`,
       message: "Rapporten publicerades. Kundlänken är nu med i sammanfattningen.",
+    });
+  }
+
+  if (action === "unpublish" || action === "regenerate_link") {
+    const now = new Date();
+    const updated = await prisma.houseReport.update({
+      where: { id: report.id },
+      data: action === "unpublish"
+        ? { status: "ARCHIVED", publicAccessEnabled: false }
+        : {
+            status: "PUBLISHED",
+            publishedAt: report.publishedAt ?? now,
+            publicAccessEnabled: true,
+            publicAccessToken: createPublicReportToken(),
+            publicTokenCreatedAt: now,
+          },
+      include: {
+        property: {
+          include: {
+            customer: true,
+            healthScore: true,
+          },
+        },
+        mailLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        },
+      },
+    });
+    const draft = buildDraft(request, updated, template, true);
+    return NextResponse.json({
+      ...draft,
+      customerName: updated.property.customer.name,
+      propertyLabel: updated.property.propertyNo || updated.property.address,
+      reportStatus: updated.status,
+      latestMail: updated.mailLogs[0]
+        ? {
+            sentAt: updated.mailLogs[0].sentAt?.toISOString() ?? null,
+            createdAt: updated.mailLogs[0].createdAt.toISOString(),
+            status: updated.mailLogs[0].status,
+            subject: updated.mailLogs[0].subject,
+            reportVersion: updated.mailLogs[0].reportVersion,
+            changedSinceLastSend: Boolean(updated.mailLogs[0].reportVersion && updated.mailLogs[0].reportVersion !== updated.reportVersion),
+          }
+        : null,
+      pdfAvailable: true,
+      pdfUrl: `${appOrigin(request)}/api/husrapport/form-data-pdf?propertyId=${updated.propertyId}`,
+      message: action === "unpublish" ? "Rapporten avpublicerades. Kundlänken fungerar inte längre." : "Ny kundlänk skapades. Den gamla länken fungerar inte längre.",
     });
   }
 

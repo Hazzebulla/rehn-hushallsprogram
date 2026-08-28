@@ -45,6 +45,9 @@ export type AdminReportVm = {
   risk: number | null;
   nextAction: string;
   updatedAt: string;
+  publishedAt: string;
+  publicAccessEnabled: boolean;
+  publicAccessToken: string;
 };
 
 type MailTemplateVariant = "short" | "standard" | "detailed";
@@ -61,6 +64,7 @@ type SummaryMailPreview = {
   customerName: string;
   propertyLabel: string;
   reportStatus: string;
+  reportPublicPath?: string;
   latestMail?: {
     sentAt: string | null;
     createdAt: string;
@@ -200,6 +204,43 @@ export default function ReportsView({
     }
   }
 
+  async function updatePublicAccess(reportId: string, action: "unpublish" | "regenerate_link") {
+    const message = action === "regenerate_link"
+      ? "Den gamla kundlänken kommer sluta fungera. Fortsätta?"
+      : "Kundlänken kommer stängas av. Fortsätta?";
+    if (!window.confirm(message)) return;
+    setMailReportId(reportId);
+    setMailLoading(true);
+    setMailMessage("");
+    try {
+      const response = await fetch(`/api/admin/reports/${reportId}/mail-summary`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, template: "standard" }),
+      });
+      const payload = await response.json() as SummaryMailPreview & { message?: string };
+      if (response.status === 401) {
+        window.location.href = `/login?next=${encodeURIComponent("/admin/reports")}`;
+        return;
+      }
+      if (!response.ok) throw new Error(payload.message ?? "Kundåtkomsten kunde inte ändras.");
+      setMailPreview(payload);
+      setMailMessage(payload.message ?? "Kundåtkomsten uppdaterades.");
+    } catch (error) {
+      setMailPreview(null);
+      setMailMessage(error instanceof Error ? error.message : "Kundåtkomsten kunde inte ändras.");
+    } finally {
+      setMailLoading(false);
+    }
+  }
+
+  async function copyPublicLink(token: string) {
+    if (!token) return;
+    const url = `${window.location.origin}/rapport/${encodeURIComponent(token)}`;
+    await navigator.clipboard.writeText(url);
+  }
+
   return (
     <>
       <div className="modernReportList">
@@ -228,13 +269,21 @@ export default function ReportsView({
                     </>
                   )}
                 </div>
+                <div className="reportAccessMeta">
+                  <span>{report.publicAccessEnabled ? "Kundåtkomst aktiv" : "Kundåtkomst stängd"}</span>
+                  <small>{report.publishedAt ? `Publicerad ${report.publishedAt}` : "Ej publicerad"}</small>
+                </div>
                 <div className="reportActions">
                   <a className="buttonLink" href={`/husrapport?reportId=${report.id}`}>Visa</a>
+                  {report.publicAccessEnabled && report.publicAccessToken ? <a className="buttonLink" href={`/rapport/${encodeURIComponent(report.publicAccessToken)}`} target="_blank">Öppna kundvy</a> : null}
+                  {report.publicAccessEnabled && report.publicAccessToken ? <button className="buttonLink" onClick={() => copyPublicLink(report.publicAccessToken)} type="button">Kopiera kundlänk</button> : null}
                   <a className="buttonLink" href={`/admin/inspection/${report.id}`}>Besiktning</a>
                   <a className="buttonLink" href={`/admin/husstatus-form?reportId=${report.id}`}>Formulär</a>
                   <button className="buttonLink" disabled={mailLoading && mailReportId === report.id} onClick={() => openMailPreview(report.id, "standard")} type="button">
                     {mailLoading && mailReportId === report.id ? "Förbereder..." : "Maila sammanfattning"}
                   </button>
+                  {report.publicAccessEnabled ? <button className="buttonLink" onClick={() => updatePublicAccess(report.id, "regenerate_link")} type="button">Ny kundlänk</button> : null}
+                  {report.publicAccessEnabled ? <button className="buttonLink danger" onClick={() => updatePublicAccess(report.id, "unpublish")} type="button">Avpublicera</button> : null}
                   <button className="buttonLink" disabled={loadingReportId === report.id} onClick={() => toggleCustomerAnswers(report.id)} type="button">
                     {isOpen ? "Dölj kundsvar" : loadingReportId === report.id ? "Hämtar..." : "Visa kundsvar"}
                   </button>

@@ -1177,6 +1177,9 @@ model HouseReport {
   reviewedAt    DateTime?
   publishedAt   DateTime?
   archivedAt    DateTime?
+  publicAccessToken     String?
+  publicAccessEnabled   Boolean   @default(false)
+  publicTokenCreatedAt  DateTime?
   performedAt   DateTime?
   performedBy   String?
   reportOwner   String?
@@ -1191,6 +1194,7 @@ model HouseReport {
   @@unique([companyId, reportNo])
   @@unique([submissionId, reportVersion])
   @@index([companyId, propertyId, status])
+  @@index([publicAccessEnabled, publicAccessToken])
 }
 
 model CustomerMailLog {

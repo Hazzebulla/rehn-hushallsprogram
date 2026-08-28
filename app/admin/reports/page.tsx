@@ -46,6 +46,9 @@ async function getReports(status?: string) {
           risk: explanation?.risk ?? null,
           nextAction: explanation?.nextAction ?? "Nästa kontroll saknas",
           updatedAt: report.updatedAt.toLocaleDateString("sv-SE"),
+          publishedAt: report.publishedAt?.toLocaleDateString("sv-SE") ?? "",
+          publicAccessEnabled: report.publicAccessEnabled,
+          publicAccessToken: report.publicAccessToken ?? "",
         };
       }),
     };

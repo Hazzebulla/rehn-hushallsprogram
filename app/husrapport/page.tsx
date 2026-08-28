@@ -1156,13 +1156,17 @@ export const dynamic = "force-dynamic";
 
 export default async function HusrapportPage({
   searchParams,
+  publicReportId,
+  publicMode = false,
 }: {
   searchParams?: Promise<{ propertyId?: string; reportId?: string }>;
+  publicReportId?: string;
+  publicMode?: boolean;
 }) {
   const params = await searchParams;
   const [reportData, reportProperties] = await Promise.all([
-    getReportData(params?.propertyId, params?.reportId),
-    getReportProperties(),
+    getReportData(publicMode ? undefined : params?.propertyId, publicReportId ?? params?.reportId),
+    publicMode ? [] : getReportProperties(),
   ]);
   const {
     propertyId,
@@ -1219,13 +1223,13 @@ export default async function HusrapportPage({
   const formDataPdfHref = propertyId ? `/api/husrapport/form-data-pdf?propertyId=${propertyId}` : "/api/husrapport/form-data-pdf";
 
   return (
-    <main className="statusReport">
-      <nav className="modeNav inline noPrint" aria-label="Demo navigation">
+    <main className={publicMode ? "statusReport publicReportMode" : "statusReport"}>
+      {!publicMode && <nav className="modeNav inline noPrint" aria-label="Demo navigation">
         <a href="/">Omslag</a>
         <a className="active" href={reportHref}>Status Husrapport</a>
         <a href="/portal">Kundkonto</a>
         <a href="/admin">RVM arbetsyta</a>
-      </nav>
+      </nav>}
 
       <section className="statusTop">
         <RvmLogo />
@@ -1236,7 +1240,7 @@ export default async function HusrapportPage({
         </div>
       </section>
 
-      <section className="reportWorkflow noPrint">
+      {!publicMode && <section className="reportWorkflow noPrint">
         <div>
           <span>Rapportflöde</span>
           <strong>Kund → fastighet → kontrollbesök → formulär → rapport → granskning → publicering</strong>
@@ -1263,7 +1267,7 @@ export default async function HusrapportPage({
           )}
           <PrintReportButton dataHref={dataExportHref} formDataPdfHref={formDataPdfHref} disabled={!dataSufficient} />
         </div>
-      </section>
+      </section>}
 
       <section className="reportQualityBar">
         <div><span>Formulärversion</span><strong>{formVersion ?? "Ej låst"}</strong></div>
@@ -1276,7 +1280,7 @@ export default async function HusrapportPage({
         <div><span>Leverans</span><strong>{deliveryMethod ?? "Ej valt"}</strong></div>
       </section>
 
-      {customerInformation.length > 0 && (
+      {!publicMode && customerInformation.length > 0 && (
         <section className="customerDeclarationPanel noPrint">
           <div className="panelTitle">
             <h3>Information från kunden</h3>
@@ -1294,7 +1298,7 @@ export default async function HusrapportPage({
         </section>
       )}
 
-      {!hasCompletedForm && dataSufficient && (
+      {!publicMode && !hasCompletedForm && dataSufficient && (
         <section className="reportGate noPrint">
           <strong>Arbetsläge - ej publicerad kundrapport.</strong>
           <p>Status, risk och åtgärder beräknas från det autosparade formuläret. Slutför och granska formuläret innan rapporten används som kundversion.</p>
@@ -1302,7 +1306,7 @@ export default async function HusrapportPage({
         </section>
       )}
 
-      {!hasCompletedForm && !dataSufficient && (
+      {!publicMode && !hasCompletedForm && !dataSufficient && (
         <section className="reportGate noPrint">
           <strong>Mer underlag behövs.</strong>
           <p>Fyll i fler centrala formulärfält för den valda fastigheten. Rapporten börjar bedöma risk och teknisk status när minst 12 riktiga formulärfält är ifyllda.</p>
@@ -1310,14 +1314,14 @@ export default async function HusrapportPage({
         </section>
       )}
 
-      {hasCompletedForm && !dataSufficient && (
+      {!publicMode && hasCompletedForm && !dataSufficient && (
         <section className="reportGate noPrint">
           <strong>Underlaget är inte tillräckligt för en tillförlitlig statusbedömning.</strong>
           <p>Komplettera formuläret eller markera saknade uppgifter som Ej kontrollerat, Ej åtkomligt eller Ej aktuellt innan risk och teknisk status används.</p>
         </section>
       )}
 
-      {reportProperties.length > 0 && (
+      {!publicMode && reportProperties.length > 0 && (
         <section className="reportPropertySwitch noPrint" aria-label="Välj fastighet för husrapport">
           <span>Testa rapport per fastighet</span>
           <div>
@@ -1637,7 +1641,7 @@ export default async function HusrapportPage({
 
       <section className="reportPage">
         <SectionHeader no="8" title="Prioriterad åtgärdsplan & paket" />
-        {priorityRows.length > 0 && (
+        {!publicMode && priorityRows.length > 0 && (
           <table>
             <thead><tr><th>Prio</th><th>Åtgärd</th><th>Varför</th><th>Tid</th><th>Estimat</th><th>Status</th></tr></thead>
             <tbody>

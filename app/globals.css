@@ -1663,7 +1663,7 @@ td {
 
 .reportCardMain {
   display: grid;
-  grid-template-columns: 82px minmax(180px, 1fr) 150px minmax(210px, 0.9fr) auto;
+  grid-template-columns: 82px minmax(180px, 1fr) 150px minmax(170px, 0.7fr) minmax(160px, 0.6fr) auto;
   gap: 12px;
   align-items: center;
   padding: 14px;
@@ -1719,6 +1719,22 @@ td {
   gap: 7px;
 }
 
+.reportAccessMeta {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.reportAccessMeta span {
+  color: var(--cyan);
+  font-weight: 900;
+}
+
+.reportAccessMeta small {
+  color: var(--muted);
+}
+
 .reportMiniStats span {
   border: 1px solid rgba(70, 158, 176, 0.24);
   border-radius: 999px;
@@ -1729,12 +1745,18 @@ td {
 
 .reportActions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }
 
 .reportActions .buttonLink {
   white-space: nowrap;
+}
+
+.reportActions .buttonLink.danger {
+  border-color: rgba(235, 91, 82, 0.58);
+  color: #ff8f86;
 }
 
 .customerAnswersPanel {
@@ -2056,6 +2078,39 @@ td {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.publicReportMode {
+  padding-top: 28px;
+}
+
+.publicReportMode .customerPrintSheet {
+  display: block;
+}
+
+.publicReportMode .reportPage {
+  scroll-margin-top: 0;
+}
+
+.publicReportUnavailable {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.publicReportUnavailable > div {
+  max-width: 620px;
+  border: 1px solid rgba(72, 214, 230, 0.38);
+  background: rgba(6, 20, 25, 0.9);
+  padding: 28px;
+}
+
+.publicReportUnavailable h1 {
+  margin: 8px 0 12px;
+  color: white;
+  font-size: clamp(34px, 7vw, 74px);
+  line-height: 0.95;
 }
 
 .preInspectionList div {

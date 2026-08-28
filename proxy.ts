@@ -7,7 +7,7 @@ export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const publicPaths = new Set(["/", "/login", "/huscheck"]);
 
-  const isPublicPath = publicPaths.has(pathname) || pathname.startsWith("/husrapport/start/") || pathname.startsWith("/demo/");
+  const isPublicPath = publicPaths.has(pathname) || pathname.startsWith("/rapport/") || pathname.startsWith("/husrapport/start/") || pathname.startsWith("/demo/");
 
   if (!isPublicPath && !hasSession) {
     const loginUrl = new URL("/login", request.url);
@@ -15,7 +15,13 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  if (pathname.startsWith("/rapport/")) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  }
+
+  return response;
 }
 
 export const config = {
