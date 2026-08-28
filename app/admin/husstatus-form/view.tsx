@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type PointerEvent } from "react";
 import { autosaveHusstatusDraftAction, completeHusstatusFormAction } from "./actions";
+import { parseComponentInput } from "../../../lib/component-input-parser";
 import {
   buildImageChecklist,
   getImageChecklistStatus,
@@ -84,6 +85,11 @@ type ComponentRegisterRow = {
   replacementYear: string;
   replacementPeriod: string;
   costKr: string;
+  location?: string;
+  comment?: string;
+  confidence?: Record<string, number>;
+  warnings?: string[];
+  approved?: boolean;
   photos?: PhotoAttachment[];
 };
 
@@ -195,49 +201,38 @@ const emptyComponentRows: ComponentRegisterRow[] = Array.from({ length: 20 }, ()
   replacementYear: "",
   replacementPeriod: "",
   costKr: "",
+  location: "",
+  comment: "",
   photos: [],
 }));
 
-function splitBrandModel(value: string) {
-  const [brand = "", ...modelParts] = value.trim().split(/\s+/);
-  return { brand, model: modelParts.join(" ") };
+function emptyComponentRow(): ComponentRegisterRow {
+  return {
+    typeName: "",
+    systemName: "",
+    category: "",
+    brand: "",
+    model: "",
+    serialNo: "",
+    installedYear: "",
+    status: "",
+    replacementYear: "",
+    replacementPeriod: "",
+    costKr: "",
+    location: "",
+    comment: "",
+    photos: [],
+  };
 }
 
-function parseComponentRegisterText(value: string): ComponentRegisterRow[] {
-  const parsed = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => {
-      if (!line) return false;
-      const normalized = line.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      return !normalized.includes("installationsregister") && !normalized.startsWith("komponent\t") && normalized !== "komponent";
-    })
-    .map((line) => {
-      const columns = line.includes(";")
-        ? line.split(";").map((part) => part.trim())
-        : line.split(/\t+/).map((part) => part.trim());
+function parseComponentRegisterText(value: string, products: ProductOption[] = []): ComponentRegisterRow[] {
+  const parsed = parseComponentInput(value, products).map((row) => ({
+    ...emptyComponentRow(),
+    ...row,
+    photos: [],
+  }));
 
-      const [typeName = "", brandModel = "", dataDim = "", serialNo = "", installedYear = "", status = ""] = columns;
-      const { brand, model } = splitBrandModel(brandModel);
-
-      return {
-        typeName,
-        systemName: dataDim,
-        category: "Värmesystem",
-        brand,
-        model,
-        serialNo,
-        installedYear,
-        status,
-        replacementYear: "",
-        replacementPeriod: "",
-        costKr: "",
-        photos: [],
-      };
-    })
-    .filter((row) => row.typeName);
-
-  return [...parsed, ...emptyComponentRows].slice(0, 20);
+  return [...parsed, ...emptyComponentRows].slice(0, Math.max(20, parsed.length));
 }
 
 function hasValue(value: AnswerValue | undefined) {
@@ -254,6 +249,24 @@ function hasValue(value: AnswerValue | undefined) {
     return Object.values(value).some((item) => String(item ?? "").trim().length > 0);
   }
   return String(value ?? "").trim().length > 0;
+}
+
+function hasComponentRowValue(row: ComponentRegisterRow) {
+  return [
+    row.typeName,
+    row.systemName,
+    row.category,
+    row.brand,
+    row.model,
+    row.serialNo,
+    row.installedYear,
+    row.status,
+    row.replacementYear,
+    row.replacementPeriod,
+    row.costKr,
+    row.location,
+    row.comment,
+  ].some((value) => String(value ?? "").trim().length > 0) || Boolean(row.photos?.length);
 }
 
 function isPhotoAttachment(value: unknown): value is PhotoAttachment {
@@ -932,73 +945,120 @@ function ComponentRegisterTable({
       <div className="componentFormHead">
         <span>#</span>
         <span>Komponent</span>
-        <span>System</span>
-        <span>Kategori</span>
         <span>Fabrikat</span>
         <span>Modell</span>
-        <span>Produktval</span>
-        <span>Serie/ID</span>
         <span>År</span>
         <span>Status</span>
-        <span>Byte år</span>
-        <span>Period</span>
-        <span>Kostnad</span>
+        <span>Placering</span>
         <span>Bilder</span>
       </div>
       {rows.map((row, index) => (
         <div className="componentFormRow" key={index}>
           <b>{index + 1}</b>
-          <input value={row.typeName ?? ""} onChange={(event) => updateRow(index, "typeName", event.target.value)} />
-          <input value={row.systemName ?? ""} onChange={(event) => updateRow(index, "systemName", event.target.value)} />
-          <select value={row.category ?? ""} onChange={(event) => updateRow(index, "category", event.target.value)}>
-            <option value="">Annan/okänd</option>
-            {categories.map((category) => <option key={category}>{category}</option>)}
-          </select>
-          <input list={`manufacturers-${index}`} value={row.brand ?? ""} onChange={(event) => updateRow(index, "brand", event.target.value)} />
-          <datalist id={`manufacturers-${index}`}>
-            {manufacturersFor(row.category).map((manufacturer) => <option key={manufacturer} value={manufacturer} />)}
-          </datalist>
-          <input
-            list={`models-${index}`}
-            value={row.model ?? ""}
-            onChange={(event) => updateRow(index, "model", event.target.value)}
-            placeholder="Sök modell"
-          />
-          <datalist id={`models-${index}`}>
-            {productsForRow(row, index).map((product) => (
-              <option key={product.id} value={product.productName || product.modelName}>
-                {product.rskNumber ? `RSK ${product.rskNumber} - ` : ""}{product.manufacturer}
-              </option>
-            ))}
-            <option value="Annan/okänd modell" />
-          </datalist>
-          <select value={row.productModelId ?? ""} onChange={(event) => selectProduct(index, event.target.value)}>
-            <option value="">Annan/okänd modell</option>
-            {productsForRow(row, index).map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.rskNumber ? `RSK ${product.rskNumber} - ` : ""}{product.productName || product.modelName}
-              </option>
-            ))}
-          </select>
-          <input value={row.serialNo ?? ""} onChange={(event) => updateRow(index, "serialNo", event.target.value)} />
-          <input value={row.installedYear ?? ""} onChange={(event) => updateRow(index, "installedYear", event.target.value)} type="number" />
-          <select value={row.status ?? ""} onChange={(event) => updateRow(index, "status", event.target.value)}>
-            <option value="">Ej valt</option>
-            <option>OK</option>
-            <option>Avvikelse</option>
-            <option>Medel</option>
-            <option>Hög</option>
-            <option>Akut</option>
-          </select>
-          <input value={row.replacementYear ?? ""} onChange={(event) => updateRow(index, "replacementYear", event.target.value)} placeholder="2030" type="number" />
-          <input value={row.replacementPeriod ?? ""} onChange={(event) => updateRow(index, "replacementPeriod", event.target.value)} placeholder="februari-mars" />
-          <input value={row.costKr ?? ""} onChange={(event) => updateRow(index, "costKr", event.target.value)} type="number" />
-          <PhotoUploader
-            compact
-            photos={row.photos ?? []}
-            onAdd={(photos) => addRowPhotos(index, photos)}
-            onRemove={(photoId) => removeRowPhoto(index, photoId)}
-          />
+          <label className="componentField primary">
+            <span>Komponent</span>
+            <input value={row.typeName ?? ""} onChange={(event) => updateRow(index, "typeName", event.target.value)} />
+          </label>
+          <label className="componentField">
+            <span>Fabrikat</span>
+            <input list={`manufacturers-${index}`} value={row.brand ?? ""} onChange={(event) => updateRow(index, "brand", event.target.value)} />
+            <datalist id={`manufacturers-${index}`}>
+              {manufacturersFor(row.category).map((manufacturer) => <option key={manufacturer} value={manufacturer} />)}
+            </datalist>
+          </label>
+          <label className="componentField">
+            <span>Modell</span>
+            <input
+              list={`models-${index}`}
+              value={row.model ?? ""}
+              onChange={(event) => updateRow(index, "model", event.target.value)}
+              placeholder="Sök modell"
+            />
+            <datalist id={`models-${index}`}>
+              {productsForRow(row, index).map((product) => (
+                <option key={product.id} value={product.productName || product.modelName}>
+                  {product.rskNumber ? `RSK ${product.rskNumber} - ` : ""}{product.manufacturer}
+                </option>
+              ))}
+              <option value="Annan/okänd modell" />
+            </datalist>
+          </label>
+          <label className="componentField compact">
+            <span>År</span>
+            <input value={row.installedYear ?? ""} onChange={(event) => updateRow(index, "installedYear", event.target.value)} type="number" />
+          </label>
+          <label className="componentField">
+            <span>Skick</span>
+            <select value={row.status ?? ""} onChange={(event) => updateRow(index, "status", event.target.value)}>
+              <option value="">Ej valt</option>
+              <option>God</option>
+              <option>OK</option>
+              <option>Kontrollera</option>
+              <option>Avvikelse</option>
+              <option>Medel</option>
+              <option>Hög</option>
+              <option>Akut</option>
+            </select>
+          </label>
+          <label className="componentField">
+            <span>Placering</span>
+            <input value={row.location ?? ""} onChange={(event) => updateRow(index, "location", event.target.value)} placeholder="Pannrum" />
+          </label>
+          <div className="componentPhotoSlot">
+            <PhotoUploader
+              compact
+              photos={row.photos ?? []}
+              onAdd={(photos) => addRowPhotos(index, photos)}
+              onRemove={(photoId) => removeRowPhoto(index, photoId)}
+            />
+          </div>
+          <details className="componentMore">
+            <summary>Mer information</summary>
+            <div className="componentMoreGrid">
+              <label className="componentField">
+                <span>System / dim</span>
+                <input value={row.systemName ?? ""} onChange={(event) => updateRow(index, "systemName", event.target.value)} />
+              </label>
+              <label className="componentField">
+                <span>Kategori</span>
+                <select value={row.category ?? ""} onChange={(event) => updateRow(index, "category", event.target.value)}>
+                  <option value="">Annan/okänd</option>
+                  {categories.map((category) => <option key={category}>{category}</option>)}
+                </select>
+              </label>
+              <label className="componentField wide">
+                <span>Produktval</span>
+                <select value={row.productModelId ?? ""} onChange={(event) => selectProduct(index, event.target.value)}>
+                  <option value="">Annan/okänd modell</option>
+                  {productsForRow(row, index).map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.rskNumber ? `RSK ${product.rskNumber} - ` : ""}{product.productName || product.modelName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="componentField">
+                <span>Serie/ID</span>
+                <input value={row.serialNo ?? ""} onChange={(event) => updateRow(index, "serialNo", event.target.value)} />
+              </label>
+              <label className="componentField">
+                <span>Byte år</span>
+                <input value={row.replacementYear ?? ""} onChange={(event) => updateRow(index, "replacementYear", event.target.value)} placeholder="2030" type="number" />
+              </label>
+              <label className="componentField">
+                <span>Period</span>
+                <input value={row.replacementPeriod ?? ""} onChange={(event) => updateRow(index, "replacementPeriod", event.target.value)} placeholder="februari-mars" />
+              </label>
+              <label className="componentField">
+                <span>Kostnad</span>
+                <input value={row.costKr ?? ""} onChange={(event) => updateRow(index, "costKr", event.target.value)} type="number" />
+              </label>
+              <label className="componentField wide">
+                <span>Kommentar</span>
+                <input value={row.comment ?? ""} onChange={(event) => updateRow(index, "comment", event.target.value)} />
+              </label>
+            </div>
+          </details>
         </div>
       ))}
     </div>
@@ -1198,6 +1258,10 @@ export default function HusstatusFormView({
   const reportUrl = propertyId ? `/husrapport?propertyId=${propertyId}` : "/husrapport";
   const [answers, setAnswers] = useState<Answers>(initialAnswers as Answers);
   const [registerPaste, setRegisterPaste] = useState(String(initialAnswers.component_register ?? ""));
+  const [quickComponentInput, setQuickComponentInput] = useState("");
+  const [parsedComponentRows, setParsedComponentRows] = useState<ComponentRegisterRow[]>([]);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [isDictating, setIsDictating] = useState(false);
   const [activeSection, setActiveSection] = useState(1);
   const [message, setMessage] = useState(
     databaseOnline ? "Formuläret autosparas som utkast i databasen." : "Databasen är offline. Formulär kan inte slutföras.",
@@ -1249,6 +1313,10 @@ export default function HusstatusFormView({
     () => summarizeImageChecklist(imageChecklist, imageStatuses, imageCountForItem),
     [answers, imageChecklist, imageStatuses],
   );
+
+  useEffect(() => {
+    setSpeechSupported(typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window));
+  }, []);
 
   function savedTimeLabel(date = new Date()) {
     return date.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
@@ -1364,14 +1432,106 @@ export default function HusstatusFormView({
   }
 
   function parseRegisterPaste() {
-    const rows = parseComponentRegisterText(registerPaste);
+    const rows = parseComponentRegisterText(registerPaste, products).filter(hasComponentRowValue);
+    setParsedComponentRows(rows);
     setAnswers((current) => ({
       ...current,
       component_register: registerPaste,
-      component_register_rows: rows,
     }));
     setActiveSection(19);
-    setMessage("Registret är tolkat till komponentrader. Kontrollera raderna och spara.");
+    setMessage(rows.length ? "Registret är tolkat till förhandsgranskning. Kontrollera och lägg till raderna." : "Inga komponenter kunde tolkas från texten.");
+  }
+
+  function parseQuickComponentRows() {
+    const rows = parseComponentRegisterText(quickComponentInput, products).filter(hasComponentRowValue);
+    setParsedComponentRows(rows);
+    setActiveSection(19);
+    setMessage(rows.length ? `${rows.length} komponenter tolkades. Granska raderna innan de läggs till.` : "Inga komponenter kunde tolkas från texten.");
+  }
+
+  function updateParsedComponentRow(index: number, key: keyof ComponentRegisterRow, value: string | boolean) {
+    setParsedComponentRows((current) => current.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, [key]: value } : row
+    )));
+  }
+
+  function removeParsedComponentRow(index: number) {
+    setParsedComponentRows((current) => current.filter((_, rowIndex) => rowIndex !== index));
+  }
+
+  function duplicateParsedComponentRow(index: number) {
+    setParsedComponentRows((current) => {
+      const row = current[index];
+      if (!row) return current;
+      return [...current.slice(0, index + 1), { ...row, photos: [] }, ...current.slice(index + 1)];
+    });
+  }
+
+  function addBlankParsedComponentRow() {
+    setParsedComponentRows((current) => [...current, { ...emptyComponentRow(), typeName: "Kontrollera", approved: false }]);
+  }
+
+  function addParsedComponentsToRegister() {
+    const rowsToAdd = parsedComponentRows.filter((row) => row.approved !== false && hasComponentRowValue(row));
+    const existingRows = (Array.isArray(answers.component_register_rows) ? answers.component_register_rows as ComponentRegisterRow[] : emptyComponentRows)
+      .filter(hasComponentRowValue);
+    const nextRows = [...existingRows, ...rowsToAdd.map((row) => ({
+      ...row,
+      confidence: undefined,
+      warnings: undefined,
+      approved: undefined,
+    }))];
+    const paddedRows = [...nextRows, ...emptyComponentRows].slice(0, Math.max(20, nextRows.length));
+    setStructuredAnswer("component_register_rows", paddedRows);
+    setParsedComponentRows([]);
+    setMessage(`${rowsToAdd.length} komponenter lades till i komponentregistret.`);
+  }
+
+  function startDictation() {
+    if (!speechSupported || isDictating) return;
+    const speechWindow = window as unknown as {
+      SpeechRecognition?: new () => {
+        lang: string;
+        interimResults: boolean;
+        continuous: boolean;
+        onresult: ((event: { resultIndex: number; results: ArrayLike<{ 0?: { transcript?: string } }> }) => void) | null;
+        onerror: (() => void) | null;
+        onend: (() => void) | null;
+        start: () => void;
+        stop: () => void;
+      };
+      webkitSpeechRecognition?: new () => {
+        lang: string;
+        interimResults: boolean;
+        continuous: boolean;
+        onresult: ((event: { resultIndex: number; results: ArrayLike<{ 0?: { transcript?: string } }> }) => void) | null;
+        onerror: (() => void) | null;
+        onend: (() => void) | null;
+        start: () => void;
+        stop: () => void;
+      };
+    };
+    const SpeechRecognitionCtor = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) return;
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "sv-SE";
+    recognition.interimResults = false;
+    recognition.continuous = true;
+    setIsDictating(true);
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .slice(event.resultIndex)
+        .map((result) => result[0]?.transcript ?? "")
+        .join(" ");
+      setQuickComponentInput((current) => `${current}${current ? "\n" : ""}${transcript}`.trim());
+    };
+    recognition.onerror = () => {
+      setIsDictating(false);
+      recognition.stop();
+    };
+    recognition.onend = () => setIsDictating(false);
+    recognition.start();
   }
 
   function autofillCustomerInfo() {
@@ -1665,6 +1825,26 @@ export default function HusstatusFormView({
             </div>
           ) : section.id === 19 ? (
             <>
+              <div className="componentQuickBox">
+                <div className="panelTitle">
+                  <h3>Klistra in eller diktera komponentuppgifter</h3>
+                  <span>Snabbflöde</span>
+                </div>
+                <textarea
+                  value={quickComponentInput}
+                  onChange={(event) => setQuickComponentInput(event.target.value)}
+                  placeholder={"NIBE F1245-8 värmepump, serienr NIBE-1245-1608742, år 2016, skick god.\nESBE VTA323 blandningsventil 2023.\nFlamco Prescor B säkerhetsventil 2023.\nGrundfos Alpha2 25-60 cirkulationspump 2023.\nAltech N18 expansionskärl 18L 2023."}
+                  rows={7}
+                />
+                <div className="componentQuickActions">
+                  <button disabled={!quickComponentInput.trim()} type="button" onClick={parseQuickComponentRows}>Tolka till komponenter</button>
+                  {speechSupported ? (
+                    <button disabled={isDictating} type="button" onClick={startDictation}>
+                      {isDictating ? "Dikterar..." : "Mikrofon Diktera"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
               <div className="registerPasteBox">
                 <label>
                   <span>Klistra in register från värmepump/underlag</span>
@@ -1678,8 +1858,60 @@ export default function HusstatusFormView({
                     rows={6}
                   />
                 </label>
-                <button type="button" onClick={parseRegisterPaste}>Tolka till komponentrader</button>
+                <button type="button" onClick={parseRegisterPaste}>Tolka register till förhandsgranskning</button>
               </div>
+              {parsedComponentRows.length > 0 ? (
+                <div className="componentParsePreview">
+                  <div className="panelTitle">
+                    <h3>Tolkade komponenter</h3>
+                    <span>{parsedComponentRows.filter((row) => row.approved !== false).length} av {parsedComponentRows.length} godkända</span>
+                  </div>
+                  <div className="parsedComponentGrid">
+                    {parsedComponentRows.map((row, index) => (
+                      <article className={row.approved === false ? "parsedComponentCard notApproved" : "parsedComponentCard"} key={`${index}-${row.typeName}-${row.brand}-${row.model}`}>
+                        <header>
+                          <strong>{row.typeName || "Kontrollera komponent"}</strong>
+                          <label>
+                            <input
+                              checked={row.approved !== false}
+                              onChange={(event) => updateParsedComponentRow(index, "approved", event.target.checked)}
+                              type="checkbox"
+                            />
+                            Godkänd
+                          </label>
+                        </header>
+                        {row.warnings?.length ? (
+                          <div className="parseWarnings">
+                            {row.warnings.map((warning, warningIndex) => <span key={`${warning}-${warningIndex}`}>{warning}</span>)}
+                          </div>
+                        ) : null}
+                        <div className="parsedFields">
+                          <label><span>Komponent</span><input value={row.typeName ?? ""} onChange={(event) => updateParsedComponentRow(index, "typeName", event.target.value)} /></label>
+                          <label><span>Fabrikat</span><input value={row.brand ?? ""} onChange={(event) => updateParsedComponentRow(index, "brand", event.target.value)} /></label>
+                          <label><span>Modell</span><input value={row.model ?? ""} onChange={(event) => updateParsedComponentRow(index, "model", event.target.value)} /></label>
+                          <label><span>År</span><input value={row.installedYear ?? ""} onChange={(event) => updateParsedComponentRow(index, "installedYear", event.target.value)} type="number" /></label>
+                          <label><span>Skick</span><input value={row.status ?? ""} onChange={(event) => updateParsedComponentRow(index, "status", event.target.value)} /></label>
+                          <label><span>Placering</span><input value={row.location ?? ""} onChange={(event) => updateParsedComponentRow(index, "location", event.target.value)} /></label>
+                          <label><span>System / dim</span><input value={row.systemName ?? ""} onChange={(event) => updateParsedComponentRow(index, "systemName", event.target.value)} /></label>
+                          <label><span>Kategori</span><input value={row.category ?? ""} onChange={(event) => updateParsedComponentRow(index, "category", event.target.value)} /></label>
+                          <label><span>Serie/ID</span><input value={row.serialNo ?? ""} onChange={(event) => updateParsedComponentRow(index, "serialNo", event.target.value)} /></label>
+                          <label><span>Kommentar</span><input value={row.comment ?? ""} onChange={(event) => updateParsedComponentRow(index, "comment", event.target.value)} /></label>
+                        </div>
+                        <div className="componentQuickActions">
+                          <button type="button" onClick={() => duplicateParsedComponentRow(index)}>Duplicera</button>
+                          <button type="button" onClick={() => removeParsedComponentRow(index)}>Ta bort</button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="componentPreviewFooter">
+                    <button type="button" onClick={addBlankParsedComponentRow}>Lägg till rad</button>
+                    <button type="button" onClick={addParsedComponentsToRegister}>
+                      Lägg till {parsedComponentRows.filter((row) => row.approved !== false && hasComponentRowValue(row)).length} komponenter
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <ComponentRegisterTable
                 rows={Array.isArray(answers.component_register_rows) ? answers.component_register_rows as ComponentRegisterRow[] : emptyComponentRows}
                 products={products}

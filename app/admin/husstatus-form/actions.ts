@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
+import { parseComponentInput } from "../../../lib/component-input-parser";
 import { buildImageChecklist, summarizeImageChecklist, type ImageChecklistStatusMap, type SectionStatusMap } from "./image-checklist";
 import { rvmFieldCount, rvmSections } from "./spec";
 
@@ -22,6 +23,8 @@ type ComponentRegisterRow = {
   replacementYear?: string;
   replacementPeriod?: string;
   costKr?: string;
+  location?: string;
+  comment?: string;
   photos?: PhotoAttachment[];
 };
 
@@ -417,7 +420,7 @@ async function createComponentFromRow(propertyId: string, row: ComponentRegister
       serialNumber: row.serialNo || null,
       installationYear: Number.isFinite(estimatedYear) ? estimatedYear : null,
       condition: row.status || null,
-      notes: row.systemName || null,
+      notes: [row.systemName, row.location ? `Placering: ${row.location}` : "", row.comment].filter(Boolean).join(" · ") || null,
       photos: row.photos?.length ? row.photos as Prisma.InputJsonValue : undefined,
       reviewStatus: product ? "LINKED_PRODUCT" : "NEEDS_REVIEW",
     },
@@ -443,67 +446,11 @@ async function createComponentsFromRegister(propertyId: string, register?: Answe
 
   if (typeof register !== "string") return 0;
 
-  const lines = register
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => {
-      if (!line) return false;
-      const normalized = line.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      return !normalized.includes("installationsregister") && !normalized.startsWith("komponent\t") && normalized !== "komponent";
-    })
-    .slice(0, 30);
+  const rows = parseComponentInput(register).slice(0, 30);
   let created = 0;
 
-  for (const line of lines) {
-    const parts = line.includes(";")
-      ? line.split(";").map((part) => part?.trim())
-      : line.split(/\t+/).map((part) => part?.trim());
-    const looksLikeReportRegister = parts.length >= 6 && /^\d{4}$/.test(parts[4] ?? "");
-    const brandModelParts = (parts[1] ?? "").split(/\s+/).filter(Boolean);
-    const [rawType, rawSystem, brand, model, year, rawStatus, replacementYearRaw, replacementPeriodRaw, cost] = looksLikeReportRegister
-      ? [
-          parts[0],
-          parts[2] || "Värmesystem",
-          brandModelParts[0] ?? "",
-          brandModelParts.slice(1).join(" "),
-          parts[4],
-          parts[5],
-          undefined,
-          undefined,
-          undefined,
-        ]
-      : parts;
-    if (!rawType) continue;
-    const category = rawSystem || (/vatten|wc|brunn|disk/i.test(rawType) ? "Tappvatten" : "Värmesystem");
-    const componentType = await ensureComponentType(rawType, category);
-    const system = await ensureSystem(propertyId, rawSystem || category, category);
-    const estimatedYear = Number(year);
-    const hasReplacementColumns = !looksLikeReportRegister && parts.length >= 9;
-    const replacementYear = Number(hasReplacementColumns ? replacementYearRaw : undefined);
-    const status = statusFromText(rawStatus || line);
-    const costKr = Number(String(hasReplacementColumns ? cost : replacementYearRaw ?? cost ?? "").replace(/[^\d]/g, ""));
-
-    await prisma.component.create({
-      data: {
-        companyId: COMPANY_ID,
-        propertyId,
-        typeId: componentType.id,
-        systemId: system.id,
-        brand: brand || null,
-        model: model || null,
-        estimatedYear: Number.isFinite(estimatedYear) ? estimatedYear : null,
-        estimateCertainty: Number.isFinite(estimatedYear) ? "FORM_TEXT" : null,
-        condition: rawStatus || "FORM_IMPORT",
-        riskLevel: status === "RED" ? "HIGH" : status === "ORANGE" || status === "YELLOW" ? "MEDIUM" : "LOW",
-        criticality: status === "RED" ? "HIGH" : "NORMAL",
-        status,
-        plannedReplacementYear: Number.isFinite(replacementYear) && replacementYear > 0
-          ? replacementYear
-          : Number.isFinite(estimatedYear) ? estimatedYear + componentType.normalLifeYears : null,
-        replacementCostCents: Number.isFinite(costKr) ? costKr * 100 : 0,
-      },
-    });
-    created += 1;
+  for (const row of rows) {
+    if (await createComponentFromRow(propertyId, row)) created += 1;
   }
 
   return created;
