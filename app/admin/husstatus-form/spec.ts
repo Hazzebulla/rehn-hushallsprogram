@@ -4,6 +4,7 @@
   type: "text" | "number" | "date" | "textarea" | "select" | "checklist";
   options?: string[];
   source?: boolean;
+  visibleWhen?: FieldVisibilityRule[];
 };
 
 export type RvmSection = {
@@ -13,10 +14,69 @@ export type RvmSection = {
   fields: RvmField[];
 };
 
+export type FieldVisibilityRule = {
+  field: string;
+  anyOf: string[];
+};
+
 const yn = ["Ja", "Nej", "Ej kontrollerat"];
 const ok = ["OK", "Avvikelse", "Ej kontrollerat"];
 const present = ["Finns", "Saknas", "Rekommenderas", "Ej aktuellt", "Ej kontrollerat"];
 const checked = ["Kontrollerat", "Avvikelse", "Ej aktuellt", "Ej åtkomligt"];
+
+function followUpWhen(fields: string[]): FieldVisibilityRule[] {
+  return fields.map((field) => ({
+    field,
+    anyOf: [
+      "Ja",
+      "Periodvis",
+      "Okänt",
+      "Ej kontrollerat",
+      "Ej åtkomligt",
+      "Avvikelse",
+      "Saknas",
+      "Rekommenderas",
+      "Renovering planeras",
+      "Byte av vitvaror",
+      "bör",
+      "läck",
+      "dålig",
+      "brist",
+      "saknas",
+      "okänt",
+      "anmärkning",
+      "problem",
+    ],
+  }));
+}
+
+function answerText(value: unknown): string {
+  if (Array.isArray(value)) return value.map(answerText).filter(Boolean).join(" ");
+  if (!value || typeof value !== "object") return String(value ?? "");
+  const record = value as Record<string, unknown>;
+  if ("value" in record || "values" in record) return answerText(record.value ?? record.values);
+  return Object.values(record).map(answerText).filter(Boolean).join(" ");
+}
+
+function normalized(value: unknown) {
+  return answerText(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function hasAnswerValue(value: unknown) {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === "object") return Object.values(value).some(hasAnswerValue);
+  return String(value ?? "").trim().length > 0;
+}
+
+export function isRvmFieldVisible(field: RvmField, answers: Record<string, unknown>) {
+  if (!field.visibleWhen?.length) return true;
+  return field.visibleWhen.some((rule) => {
+    const answer = answers[rule.field];
+    if (!hasAnswerValue(answer)) return false;
+    const text = normalized(answer);
+    return rule.anyOf.some((needle) => text.includes(normalized(needle)));
+  });
+}
 
 export const rvmSections: RvmSection[] = [
   {
@@ -46,7 +106,7 @@ export const rvmSections: RvmSection[] = [
       { key: "poor_pressure", label: "Dåligt tryck eller flöde", type: "select", options: yn },
       { key: "pressure_loss", label: "Återkommande tryckfall eller påfyllning", type: "select", options: yn },
       { key: "previous_damage", label: "Tidigare läckage / vattenskada / frysskada", type: "select", options: yn },
-      { key: "history_notes", label: "Kommentarer från kund och historik", type: "textarea", source: true },
+      { key: "history_notes", label: "Kommentarer från kund och historik", type: "textarea", source: true, visibleWhen: followUpWhen(["uneven_heat", "high_energy", "poor_pressure", "pressure_loss", "previous_damage"]) },
     ],
   },
   {
@@ -71,8 +131,8 @@ export const rvmSections: RvmSection[] = [
       { key: "water_meter", label: "Vattenmätarfabrikat / Q3 / nummer", type: "text" },
       { key: "main_shutoff", label: "Huvudavstängning typ / dimension", type: "text" },
       { key: "static_pressure_bar", label: "Statisk vattentryck bar", type: "number", source: true },
-      { key: "dynamic_pressure_bar", label: "Dynamiskt vattentryck bar", type: "number", source: true },
-      { key: "flow_l_min", label: "Flöde vid tappunkt l/min", type: "number", source: true },
+      { key: "dynamic_pressure_bar", label: "Dynamiskt vattentryck bar", type: "number", source: true, visibleWhen: followUpWhen(["poor_pressure", "static_pressure_bar"]) },
+      { key: "flow_l_min", label: "Flöde vid tappunkt l/min", type: "number", source: true, visibleWhen: followUpWhen(["poor_pressure", "dynamic_pressure_bar"]) },
     ],
   },
   {
@@ -99,7 +159,7 @@ export const rvmSections: RvmSection[] = [
       { key: "hot_water_out_c", label: "Varmvatten ut från produktion °C", type: "number", source: true },
       { key: "nearest_tap_c", label: "Närmaste tappställe °C", type: "number", source: true },
       { key: "furthest_tap_c", label: "Längst bort tappställe °C", type: "number", source: true },
-      { key: "time_to_50_sec", label: "Tid till 50 °C sek", type: "number", source: true },
+      { key: "time_to_50_sec", label: "Tid till 50 °C sek", type: "number", source: true, visibleWhen: followUpWhen(["furthest_tap_c", "hot_water_type"]) },
     ],
   },
   {
@@ -111,8 +171,8 @@ export const rvmSections: RvmSection[] = [
       { key: "heat_source_product", label: "Fabrikat, modell, serienummer, år", type: "text" },
       { key: "nominal_power", label: "Nominell effekt / tillsats", type: "text" },
       { key: "control_system", label: "Styrsystem / programversion", type: "text" },
-      { key: "service_history", label: "Servicehistorik", type: "textarea" },
-      { key: "alarms", label: "Aktuella / historiska larm", type: "textarea" },
+      { key: "service_history", label: "Servicehistorik", type: "textarea", visibleWhen: followUpWhen(["heat_source_type", "heat_source_product", "alarms"]) },
+      { key: "alarms", label: "Aktuella / historiska larm", type: "textarea", visibleWhen: followUpWhen(["heat_source_type", "heat_source_product", "service_history"]) },
     ],
   },
   {
@@ -126,7 +186,7 @@ export const rvmSections: RvmSection[] = [
       { key: "brine_in_c", label: "Brine in °C", type: "number", source: true },
       { key: "brine_out_c", label: "Brine ut °C", type: "number", source: true },
       { key: "brine_pressure_bar", label: "Köldbärartryck bar", type: "number", source: true },
-      { key: "extra_drilling", label: "Tilläggsborrning bör utredas", type: "select", options: yn },
+      { key: "extra_drilling", label: "Tilläggsborrning bör utredas", type: "select", options: yn, visibleWhen: followUpWhen(["energy_source_type", "brine_in_c", "brine_out_c", "brine_pressure_bar"]) },
     ],
   },
   {
@@ -140,7 +200,7 @@ export const rvmSections: RvmSection[] = [
       { key: "safety_valve", label: "Säkerhetsventil tryck/dimension", type: "text" },
       { key: "supply_temp_c", label: "Framledning värme °C", type: "number", source: true },
       { key: "return_temp_c", label: "Returledning värme °C", type: "number", source: true },
-      { key: "heat_pressure_bar", label: "Systemtryck värme bar", type: "number", source: true },
+      { key: "heat_pressure_bar", label: "Systemtryck värme bar", type: "number", source: true, visibleWhen: followUpWhen(["circulation_pump", "expansion_vessel", "safety_valve"]) },
     ],
   },
   {
@@ -153,7 +213,7 @@ export const rvmSections: RvmSection[] = [
       { key: "valve_type", label: "Ventilfabrikat / typ / dimension", type: "text" },
       { key: "valves_stuck", label: "Ventiler kärvar / läcker / saknar reglering", type: "select", options: yn },
       { key: "floor_heating", label: "Golvvärmefördelare / antal slingor", type: "text" },
-      { key: "radiator_package_notes", label: "Paketdata och reservationer", type: "textarea" },
+      { key: "radiator_package_notes", label: "Paketdata och reservationer", type: "textarea", visibleWhen: followUpWhen(["valves_stuck", "floor_heating"]) },
     ],
   },
   {
@@ -166,7 +226,7 @@ export const rvmSections: RvmSection[] = [
       { key: "pipe_couplings", label: "Kopplingstyper", type: "checklist", options: ["Press", "Löd", "Klämring", "Skärring", "Gängat", "Blandat"] },
       { key: "galvanized", label: "Galvaniserade ledningar finns/misstänks", type: "select", options: yn },
       { key: "pipe_in_pipe", label: "Rör-i-rör och läckageindikering", type: "select", options: ok },
-      { key: "pipe_notes", label: "Dimension / plats / uppskattad längd", type: "textarea" },
+      { key: "pipe_notes", label: "Dimension / plats / uppskattad längd", type: "textarea", visibleWhen: followUpWhen(["galvanized", "pipe_in_pipe", "pipe_couplings"]) },
     ],
   },
   {
@@ -179,7 +239,7 @@ export const rvmSections: RvmSection[] = [
       { key: "floor_drain", label: "Golvbrunnsfabrikat / typ / årgång", type: "text" },
       { key: "known_stops", label: "Kända stopp, bubbel eller luktproblem", type: "select", options: yn },
       { key: "sewer_film", label: "Filmning / spolning bör erbjudas", type: "select", options: yn },
-      { key: "sewer_notes", label: "Observationer", type: "textarea" },
+      { key: "sewer_notes", label: "Observationer", type: "textarea", visibleWhen: followUpWhen(["floor_drain", "known_stops", "sewer_film"]) },
     ],
   },
   {
@@ -192,7 +252,7 @@ export const rvmSections: RvmSection[] = [
       { key: "dishwasher", label: "Diskmaskinsanslutning och avstängning", type: "select", options: ok },
       { key: "water_alarm", label: "Läckagelarm / vattenfelsbrytare", type: "select", options: present },
       { key: "kitchen_future", label: "Kundens framtida planer för köket", type: "select", options: ["Inga kända", "Renovering planeras", "Byte av vitvaror", "Okänt"] },
-      { key: "kitchen_notes", label: "Köksobservationer", type: "textarea" },
+      { key: "kitchen_notes", label: "Köksobservationer", type: "textarea", visibleWhen: followUpWhen(["kitchen_sink_cabinet", "kitchen_waterproof_base", "dishwasher", "water_alarm", "kitchen_future"]) },
     ],
   },
   {
@@ -205,7 +265,7 @@ export const rvmSections: RvmSection[] = [
       { key: "bathroom_1_wc", label: "WC - typ, anslutning och avstängning", type: "select", options: ok },
       { key: "bathroom_1_drain", label: "Golvbrunn - fabrikat/typ/årgång", type: "text" },
       { key: "bathroom_1_leak", label: "Läckagespår / missfärgning / lukt", type: "select", options: yn },
-      { key: "bathroom_notes", label: "Utrymme 2 eller fler våtrum", type: "textarea" },
+      { key: "bathroom_notes", label: "Utrymme 2 eller fler våtrum", type: "textarea", visibleWhen: followUpWhen(["bathroom_1_wc", "bathroom_1_drain", "bathroom_1_leak"]) },
     ],
   },
   {
@@ -217,7 +277,7 @@ export const rvmSections: RvmSection[] = [
       { key: "laundry_sink", label: "Tvättho / blandare / avstängningar", type: "select", options: ok },
       { key: "laundry_drain", label: "Golvbrunn - typ, årgång och skick", type: "text" },
       { key: "laundry_alarm", label: "Vattenfelsbrytare / läckagelarm", type: "select", options: present },
-      { key: "laundry_notes", label: "Observationer och framtida planer", type: "textarea" },
+      { key: "laundry_notes", label: "Observationer och framtida planer", type: "textarea", visibleWhen: followUpWhen(["laundry_machines", "laundry_sink", "laundry_drain", "laundry_alarm"]) },
     ],
   },
   {
@@ -230,7 +290,7 @@ export const rvmSections: RvmSection[] = [
       { key: "pool_spa", label: "Pool / spa / utedusch", type: "select", options: checked },
       { key: "planned_heat_source_change", label: "Planerat byte av värmekälla", type: "select", options: yn },
       { key: "other_trades", label: "Andra yrkesgrupper kan behövas", type: "checklist", options: ["El", "Vent", "Bygg", "Tak", "Fönster", "Isolering"] },
-      { key: "future_notes", label: "Övriga framtidsplaner", type: "textarea" },
+      { key: "future_notes", label: "Övriga framtidsplaner", type: "textarea", visibleWhen: followUpWhen(["outdoor_taps", "garage_guesthouse", "pool_spa", "planned_heat_source_change", "other_trades"]) },
     ],
   },
   {
@@ -243,7 +303,7 @@ export const rvmSections: RvmSection[] = [
       { key: "water_m3", label: "Årsförbrukning vatten m³", type: "number", source: true },
       { key: "residents_temp", label: "Antal boende och normal inomhustemperatur", type: "text", source: true },
       { key: "energy_declaration", label: "Energideklaration / tidigare energiberäkning", type: "select", options: present },
-      { key: "energy_notes", label: "Energieffektiviseringsråd", type: "textarea" },
+      { key: "energy_notes", label: "Energieffektiviseringsråd", type: "textarea", visibleWhen: followUpWhen(["electricity_kwh", "heat_consumption", "water_m3", "energy_declaration", "high_energy"]) },
     ],
   },
   {
@@ -258,7 +318,7 @@ export const rvmSections: RvmSection[] = [
       { key: "quarterly_delivery", label: "Leveranssätt kontrollöversyn", type: "select", options: ["E-post", "Post", "E-post och post"] },
       { key: "next_control", label: "Nästa rekommenderade kontroll", type: "text" },
       { key: "followup_owner", label: "Ansvarig för uppföljning", type: "text" },
-      { key: "service_notes", label: "Servicekommentar", type: "textarea" },
+      { key: "service_notes", label: "Servicekommentar", type: "textarea", visibleWhen: followUpWhen(["service_advice", "rvm_service_agreement", "annual_control", "quarterly_control"]) },
     ],
   },
   {
@@ -283,8 +343,8 @@ export const rvmSections: RvmSection[] = [
     title: "Underlag för analys, livslängd och kostnadsestimat",
     description: "Alternativa kalkyler som ska kunna jämföras i rapportfilen.",
     fields: [
-      { key: "cost_scenarios", label: "Kostnadsscenarier och jämförelser", type: "textarea" },
-      { key: "price_date", label: "Prisdatum", type: "date" },
+      { key: "cost_scenarios", label: "Kostnadsscenarier och jämförelser", type: "textarea", visibleWhen: followUpWhen(["observations", "top_priority", "create_quote"]) },
+      { key: "price_date", label: "Prisdatum", type: "date", visibleWhen: followUpWhen(["cost_scenarios", "create_quote"]) },
     ],
   },
   {
@@ -295,7 +355,7 @@ export const rvmSections: RvmSection[] = [
       { key: "digital_self_check", label: "Årlig digital egenkontroll från kund", type: "select", options: ["Erbjuds", "Ej aktuellt"] },
       { key: "customer_report_delivery", label: "Leverans av Husrapport", type: "select", options: ["Kundportal", "E-post", "Utskrift/post", "Kundportal och e-post"] },
       { key: "customer_contact_preference", label: "Föredragen kontakt", type: "select", options: ["Telefon", "E-post", "SMS", "Kundportal"] },
-      { key: "customer_next_message", label: "Nästa meddelande till kund", type: "textarea" },
+      { key: "customer_next_message", label: "Nästa meddelande till kund", type: "textarea", visibleWhen: followUpWhen(["digital_self_check", "customer_report_delivery", "customer_contact_preference"]) },
     ],
   },
   {

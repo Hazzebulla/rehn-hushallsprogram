@@ -15,7 +15,7 @@ import {
   type SectionStatus,
   type SectionStatusMap,
 } from "./image-checklist";
-import type { RvmField, RvmSection } from "./spec";
+import { isRvmFieldVisible, type RvmField, type RvmSection } from "./spec";
 
 type PropertyOption = {
   id: string;
@@ -307,6 +307,12 @@ function answerBelongsToInactiveSection(key: string, sections: RvmSection[], ans
   const baseKey = key.replace(/__source$|__photos$/, "");
   const owner = sections.find((section) => section.fields.some((field) => field.key === baseKey));
   return owner ? !isSectionActive(answers, owner.id) : false;
+}
+
+function answerBelongsToHiddenField(key: string, sections: RvmSection[], answers: Answers) {
+  const baseKey = key.replace(/__source$|__photos$/, "");
+  const field = sections.flatMap((section) => section.fields).find((item) => item.key === baseKey);
+  return field ? !isRvmFieldVisible(field, answers as Record<string, unknown>) : false;
 }
 
 function lightweightValue(value: unknown): unknown {
@@ -1280,13 +1286,16 @@ export default function HusstatusFormView({
       key !== "section_statuses"
       && key !== "image_checklist_statuses"
       && !answerBelongsToInactiveSection(key, sections, answers)
+      && !answerBelongsToHiddenField(key, sections, answers)
       && hasValue(value),
     ).length,
     [answers, sections],
   );
   const saveableCount = useMemo(() => Object.values(answers).filter(hasValue).length, [answers]);
   const activeFieldCount = useMemo(
-    () => sections.filter((item) => isSectionActive(answers, item.id)).reduce((count, item) => count + item.fields.length, 0),
+    () => sections
+      .filter((item) => isSectionActive(answers, item.id))
+      .reduce((count, item) => count + item.fields.filter((field) => isRvmFieldVisible(field, answers as Record<string, unknown>)).length, 0),
     [answers, sections],
   );
   const inactiveSectionCount = useMemo(
@@ -1796,7 +1805,11 @@ export default function HusstatusFormView({
         <article className="portalPanel formSection">
           <div className="panelTitle">
             <h3>{section.id}. {section.title}{activeSectionIsNotApplicable ? " - Finns ej" : ""}</h3>
-            <span>{activeSectionIsNotApplicable ? "Finns ej i fastigheten" : `${section.fields.length} fält`}</span>
+            <span>
+              {activeSectionIsNotApplicable
+                ? "Finns ej i fastigheten"
+                : `${section.fields.filter((field) => isRvmFieldVisible(field, answers as Record<string, unknown>)).length} aktiva fält`}
+            </span>
           </div>
           <p>{section.description}</p>
           <div className="sectionApplicability">
@@ -1922,6 +1935,7 @@ export default function HusstatusFormView({
             <>
             <div className="rvmFieldGrid">
               {section.fields.map((field) => {
+                if (!isRvmFieldVisible(field, answers as Record<string, unknown>)) return null;
                 const photosKey = `${field.key}__photos`;
                 const photos = photoArray(answers[photosKey]);
                 const canAttachPhotos = fieldAllowsPhotos(section.id, field);

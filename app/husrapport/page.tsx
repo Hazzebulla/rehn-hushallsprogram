@@ -2,6 +2,7 @@
 import { getLiveOutdoorTemperature } from "../../lib/weather";
 import { houseReportStatusLabel } from "../../lib/house-report-status";
 import { calculateHusstatusScore } from "../../lib/husstatus-scoring";
+import { scoringForReportView } from "../../lib/husstatus-report-snapshot";
 import type { RiskMatrixPoint } from "../../lib/husstatus-scoring";
 import { rvmFieldCount, rvmSections } from "../admin/husstatus-form/spec";
 import { updateHouseReportStatusAction } from "./actions";
@@ -760,9 +761,10 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
     const formComponents = formComponentsFromAnswers(latestRawAnswers);
     const storedComponents: ReportComponent[] = property.components ?? [];
     const components = formComponents.length ? formComponents : storedComponents;
-    const scoring = calculateHusstatusScore(Object.fromEntries(latestRawAnswers), components, {
+    const calculatedScoring = calculateHusstatusScore(Object.fromEntries(latestRawAnswers), components, {
       totalControlPoints: activeReportFieldCount,
     });
+    const scoring = selectedReport ? scoringForReportView(latestReport?.summary, calculatedScoring) : calculatedScoring;
     const dataSufficient = scoring.dataSufficient;
     const risk = dataSufficient ? scoring.riskIndex : 0;
     const health = dataSufficient ? scoring.houseScore : 0;

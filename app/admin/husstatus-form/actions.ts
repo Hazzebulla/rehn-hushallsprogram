@@ -6,7 +6,7 @@ import { prisma } from "../../../lib/prisma";
 import { parseComponentInput } from "../../../lib/component-input-parser";
 import { calculateHusstatusScore } from "../../../lib/husstatus-scoring";
 import { buildImageChecklist, summarizeImageChecklist, type ImageChecklistStatusMap, type SectionStatusMap } from "./image-checklist";
-import { rvmFieldCount, rvmSections } from "./spec";
+import { isRvmFieldVisible, rvmFieldCount, rvmSections } from "./spec";
 
 const COMPANY_ID = "org_rehn_vvs";
 const DEMO_ACTOR_ID = "usr_admin_rehn";
@@ -115,7 +115,9 @@ function isSectionActive(answers: Answers, sectionId: number) {
 function isFieldActive(answers: Answers, fieldKey: string) {
   const baseKey = fieldKey.replace(/__source$|__photos$/, "");
   const sectionId = fieldSectionByKey.get(baseKey);
-  return sectionId ? isSectionActive(answers, sectionId) : true;
+  if (sectionId && !isSectionActive(answers, sectionId)) return false;
+  const field = rvmSections.flatMap((section) => section.fields).find((item) => item.key === baseKey);
+  return field ? isRvmFieldVisible(field, answers as Record<string, unknown>) : true;
 }
 
 function activeAnswersForValidation(answers: Answers): Answers {
@@ -132,7 +134,7 @@ function activeAnswersForValidation(answers: Answers): Answers {
 function activeFieldCount(answers: Answers) {
   return rvmSections
     .filter((section) => isSectionActive(answers, section.id))
-    .reduce((count, section) => count + section.fields.length, 0);
+    .reduce((count, section) => count + section.fields.filter((field) => isRvmFieldVisible(field, answers as Record<string, unknown>)).length, 0);
 }
 
 function textFromAnswers(answers: Answers) {
