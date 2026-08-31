@@ -1,4 +1,5 @@
 import { prisma } from "../../../lib/prisma";
+import { customerDeclarationStats } from "../../../lib/huscheck-customer-answers";
 import AdminSidebar from "../admin-sidebar";
 
 export const dynamic = "force-dynamic";
@@ -60,8 +61,10 @@ async function getHuschecks(): Promise<{ databaseOnline: boolean; items: Huschec
         if (!property) return [];
         const selfDeclaration = submission.answers.find((answer) => answer.fieldKey === "customer_self_declaration");
         const payload = answerPayload(selfDeclaration?.value);
-        const problems = isRecord(payload) && Array.isArray(payload.problems) ? payload.problems.filter((item) => item !== "Inga kända problem") : [];
-        const bookedControl = isRecord(payload) && payload.bookedControl === true ? "Ja" : "Nej";
+        const stats = customerDeclarationStats(payload);
+        const legacySummary = isRecord(payload) && isRecord(payload.legacySummary) ? payload.legacySummary : payload;
+        const problems = isRecord(legacySummary) && Array.isArray(legacySummary.problems) ? legacySummary.problems.filter((item) => item !== "Inga kända problem") : [];
+        const bookedControl = isRecord(legacySummary) && legacySummary.bookedControl === true ? "Ja" : "Nej";
 
         return [{
           id: submission.id,
@@ -69,7 +72,7 @@ async function getHuschecks(): Promise<{ databaseOnline: boolean; items: Huschec
           address: property.address,
           createdAt: dateFormatter.format(submission.createdAt),
           preliminaryStatus: preliminaryStatus(problems.length),
-          problemCount: problems.length,
+          problemCount: Math.max(problems.length, stats.highlights.filter((item) => item.tone === "warning").length),
           bookedControl,
           propertyId: property.id,
         }];

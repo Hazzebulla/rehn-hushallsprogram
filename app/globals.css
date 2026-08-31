@@ -1769,7 +1769,7 @@ td {
 
 .customerAnswerSummary {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) auto auto;
+  grid-template-columns: minmax(240px, 1fr) auto auto auto;
   gap: 10px;
   align-items: center;
   border: 1px solid rgba(72, 214, 230, 0.35);
@@ -1787,10 +1787,60 @@ td {
   font-size: 12px;
 }
 
+.compactTitle {
+  margin-top: 2px;
+}
+
+.customerHighlights {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(240, 196, 69, 0.38);
+  border-radius: 8px;
+  padding: 13px;
+  background: rgba(74, 62, 20, 0.18);
+}
+
+.customerHighlights h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.customerHighlights div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.customerHighlights span {
+  border: 1px solid rgba(72, 214, 230, 0.24);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.customerHighlights span.warning {
+  border-color: rgba(240, 196, 69, 0.55);
+  color: #f0c445;
+}
+
+.customerHighlights p {
+  margin: 0;
+  font-size: 12px;
+}
+
 .customerAnswerGroups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.customerAnswerGroups.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .customerAnswerGroup {
@@ -1836,6 +1886,104 @@ td {
 .customerAnswerGroup dd {
   color: var(--text);
   overflow-wrap: anywhere;
+}
+
+.customerAnswerGroup dd small {
+  display: block;
+  margin-top: 4px;
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.operationalOverview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.86fr);
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.operationalOverview article {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid rgba(72, 214, 230, 0.32);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(4, 12, 12, 0.48);
+}
+
+.readinessList,
+.internalTaskList {
+  display: grid;
+  gap: 8px;
+}
+
+.readinessList div {
+  display: grid;
+  grid-template-columns: 28px minmax(130px, 0.55fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid rgba(70, 158, 176, 0.18);
+  padding-top: 8px;
+}
+
+.readinessList b {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: var(--cyan);
+  font-size: 12px;
+}
+
+.readinessList .missing b {
+  color: #f0c445;
+}
+
+.readinessList strong {
+  color: var(--text);
+}
+
+.readinessList span,
+.internalTaskList li {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.readyBanner {
+  border: 1px solid rgba(130, 210, 150, 0.55);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #82d296;
+  text-transform: uppercase;
+}
+
+.technicalActionList a {
+  display: grid;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.technicalActionList a strong,
+.technicalActionList a span,
+.technicalActionList a small {
+  overflow-wrap: anywhere;
+}
+
+.technicalActionList a span {
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.technicalActionList a small {
+  color: var(--muted);
 }
 
 .customerAnswerGroup .unanswered dd {
@@ -7386,6 +7534,14 @@ td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .operationalOverview {
+    grid-template-columns: 1fr;
+  }
+
+  .customerAnswerGroups.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .imageLibraryGroup header {
     display: grid;
   }
@@ -7567,6 +7723,9 @@ td {
   .reportCardMain,
   .reportCardMain.empty,
   .customerAnswerSummary,
+  .operationalOverview,
+  .readinessList div,
+  .customerAnswerGroups.compact,
   .customerAnswerGroup dl div,
   .mailPreviewGrid,
   .systemChecks div,

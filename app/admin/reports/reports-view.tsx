@@ -31,6 +31,9 @@ export type ReportAnswerDetails = {
   imageCount: number;
   problemCount: number;
   answerGroups: ReportAnswerGroup[];
+  prefilledGroups: ReportAnswerGroup[];
+  highlights: Array<{ tone: "warning" | "info"; text: string }>;
+  submittedAt: string;
   extraAnswers: ReportAnswerItem[];
   images: ReportImageVm[];
 };
@@ -424,8 +427,26 @@ function CustomerAnswerDetails({
     <>
       <div className="customerAnswerSummary">
         <strong>{details.summaryText}</strong>
+        {details.submittedAt ? <span>Inskickad: {new Date(details.submittedAt).toLocaleString("sv-SE")}</span> : <span>Inskickad: Ej angivet</span>}
         <span>Nästa steg: {report.nextAction}</span>
         {report.risk !== null ? <span>Riskindex: {report.risk} %</span> : <span>Riskindex: Ej bedömt</span>}
+      </div>
+
+      {details.highlights.length ? (
+        <section className="customerHighlights">
+          <h4>Kunden har uppgett</h4>
+          <div>
+            {details.highlights.map((highlight, index) => (
+              <span className={highlight.tone} key={`${highlight.text}-${index}`}>{highlight.text}</span>
+            ))}
+          </div>
+          <p>Detta är kunduppgifter och räknas inte som konstaterade tekniska brister innan montören verifierat dem på plats.</p>
+        </section>
+      ) : null}
+
+      <div className="panelTitle compactTitle">
+        <h3>Kundens Huscheck</h3>
+        <span>Originalsvar grupperade enligt kundformuläret</span>
       </div>
 
       <div className="customerAnswerGroups">
@@ -457,6 +478,30 @@ function CustomerAnswerDetails({
           </section>
         ) : null}
       </div>
+
+      {details.prefilledGroups.length ? (
+        <>
+          <div className="panelTitle compactTitle">
+            <h3>Förifyllt platsbesök</h3>
+            <span>Kunduppgifter som montören ska verifiera eller korrigera</span>
+          </div>
+          <div className="customerAnswerGroups compact">
+            {details.prefilledGroups.slice(0, 8).map((group) => (
+              <section className="customerAnswerGroup" key={`prefill-${group.id}`}>
+                <h4>{group.title}</h4>
+                <dl>
+                  {group.items.filter((item) => item.answered).slice(0, 8).map((item) => (
+                    <div key={`prefill-${item.key}`}>
+                      <dt>{item.label}</dt>
+                      <dd>{item.value} <small>Kunduppgift</small></dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ))}
+          </div>
+        </>
+      ) : null}
 
       <section className="customerAnswerImages">
         <div className="panelTitle">

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
+import { buildCustomerSelfDeclaration } from "../../lib/huscheck-customer-answers";
 import { rvmSections } from "../admin/husstatus-form/spec";
 
 const COMPANY_ID = "org_rehn_vvs";
@@ -183,6 +184,8 @@ function mapToHusstatusAnswers(payload: HuscheckPayload) {
     payload.recentWork === "Ja" ? `Senaste VVS-arbete: ${payload.recentWorkDescription}` : "",
   ].filter(Boolean).join("\n");
 
+  const customerSelfDeclaration = buildCustomerSelfDeclaration(payload);
+
   return {
     customer_name: fullName,
     contact: [payload.phone, payload.email].map(clean).filter(Boolean).join(" / "),
@@ -207,15 +210,7 @@ function mapToHusstatusAnswers(payload: HuscheckPayload) {
     other_image_notes: "Bilder från kundens självdeklaration är kunduppgift och ej verifierade av montör.",
     other_information__photos: payload.otherPhotos,
     component_register_rows: componentRows,
-    customer_self_declaration: {
-      submittedAt: new Date().toISOString(),
-      source: "Kunduppgift – ej verifierad",
-      heating: payload.heating,
-      problems: payload.problems,
-      hotWaterType: payload.hotWaterType,
-      heatDistribution: payload.heatDistribution,
-      bookedControl: false,
-    },
+    customer_self_declaration: customerSelfDeclaration,
     ...sourceEntries([
       "customer_name",
       "contact",

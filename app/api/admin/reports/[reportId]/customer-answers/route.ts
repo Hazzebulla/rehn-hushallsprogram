@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rvmSections } from "../../../../../../app/admin/husstatus-form/spec";
+import { customerDeclarationStats, groupedCustomerAnswersFromDeclaration, legacyCustomerGroupsFromMappedAnswers } from "../../../../../../lib/huscheck-customer-answers";
 import { extractHusstatusImages } from "../../../../../../lib/husstatus-images";
 import { prisma } from "../../../../../../lib/prisma";
 import { getCurrentSessionUser } from "../../../../../../lib/session";
@@ -121,10 +122,13 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   answers.contact = [report.property.customer.phone, report.property.customer.invoiceEmail].filter(Boolean).join(" / ");
   answers.property_address = [report.property.propertyNo, report.property.address].filter(Boolean).join(" / ");
   answers.build_year = report.property.buildYear?.toString() ?? "";
-  const answerGroups = groupedAnswers(answers);
+  const declarationGroups = groupedCustomerAnswersFromDeclaration(answers.customer_self_declaration);
+  const answerGroups = declarationGroups.length ? declarationGroups : legacyCustomerGroupsFromMappedAnswers(answers);
+  const prefilledGroups = groupedAnswers(answers).filter((group) => group.items.some((item) => item.answered));
   const fieldKeys = new Set(rvmSections.flatMap((section) => section.fields.map((field) => field.key)));
   const answeredQuestions = answerGroups.reduce((sum, group) => sum + group.items.filter((item) => item.answered).length, 0);
-  const totalQuestions = rvmSections.reduce((count, section) => count + section.fields.length, 0);
+  const declarationStats = customerDeclarationStats(answers.customer_self_declaration);
+  const totalQuestions = declarationStats.totalQuestions || answerGroups.reduce((sum, group) => sum + group.items.length, 0);
   const images = extractHusstatusImages([report.submission], rvmSections)
     .filter((image) => image.dataUrl)
     .map((image) => ({
@@ -143,7 +147,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       answered: true,
     }))
     .filter((item) => item.value !== answeredText);
-  const problemCount = countProblems(answers);
+  const problemCount = Math.max(countProblems(answers), declarationStats.highlights.filter((item) => item.tone === "warning").length);
 
   const details: ReportAnswerDetails = {
     summaryText: `${answeredQuestions} av ${totalQuestions} frågor besvarade · ${images.length} bilder · ${problemCount} rapporterade problem`,
@@ -152,6 +156,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     imageCount: images.length,
     problemCount,
     answerGroups,
+    prefilledGroups,
+    highlights: declarationStats.highlights,
+    submittedAt: declarationStats.submittedAt,
     extraAnswers,
     images,
   };

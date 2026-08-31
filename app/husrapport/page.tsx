@@ -153,6 +153,10 @@ type ReportData = {
   signatures: ReportSignature[];
   topRisks: string[][];
   recommendedActions: string[];
+  technicalActions?: string[][];
+  internalTasks?: string[];
+  readinessItems?: Array<{ label: string; done: boolean; detail: string }>;
+  reportReadiness?: number;
   riskOverview: Array<[string, number]>;
   riskMatrix: RiskMatrixPoint[];
 };
@@ -813,6 +817,28 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       ...(annualControlEnabled ? ["Lägg in årlig kontroll av värme, tryck, filter och säkerhetsfunktion"] : []),
       ...(quarterlyControlEnabled ? [`Skicka kvartalsvis kontrollöversyn${deliveryMethod ? ` via ${deliveryMethod.toLowerCase()}` : ""}`] : []),
     ].filter((item, index, list) => list.indexOf(item) === index);
+    const technicalActions = scoring.actions.slice(0, 8).map((action) => [
+      action.component,
+      action.priority,
+      action.action,
+      action.recommendedTime,
+      action.costCents ? costLabel(action.costCents) : "Pris ej fastställt",
+    ]);
+    const internalTasks = [
+      customerDeclaration.rows.length ? "" : "Kundens Huscheck saknas eller behöver kopplas",
+      hasCompletedForm ? "" : "Slutför platsbesöksformuläret",
+      customerDeclaration.imageCount || signatures.length ? "" : "Dokumentera bilder eller signaturer i underlaget",
+      dataSufficient ? "" : "Komplettera kontrollpunkter så scoring kan beräknas",
+      components.length ? "" : "Verifiera komponentregister",
+    ].filter(Boolean);
+    const readinessItems = [
+      { label: "Kunduppgifter", done: Boolean(propertyCustomer.name && property.address), detail: propertyCustomer.name && property.address ? "Kopplade till fastighet" : "Saknas" },
+      { label: "Huscheck", done: customerDeclaration.rows.length > 0, detail: customerDeclaration.rows.length ? `${customerDeclaration.rows.length} kunduppgifter` : "Ej inskickad" },
+      { label: "Platskontroll", done: hasCompletedForm, detail: hasCompletedForm ? "Genomförd" : `${formProgress} % formulär` },
+      { label: "Bilder", done: customerDeclaration.imageCount > 0 || signatures.length > 0, detail: customerDeclaration.imageCount ? `${customerDeclaration.imageCount} kundbilder` : "Ej dokumenterat" },
+      { label: "Scoring", done: dataSufficient, detail: dataSufficient ? `${health}/100 · risk ${risk}%` : "Underlag saknas" },
+    ];
+    const reportReadiness = Math.round((readinessItems.filter((item) => item.done).length / readinessItems.length) * 100);
 
     const rawDriftRows: Array<[string, string | number | undefined, string] | undefined> = [
       ["Utetemp live", liveWeather?.value ?? "Ej uppmätt", ""],
@@ -1038,6 +1064,10 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
       signatures,
       topRisks,
       recommendedActions,
+      technicalActions,
+      internalTasks,
+      readinessItems,
+      reportReadiness,
       riskOverview,
       riskMatrix: scoring.riskMatrix,
     };
@@ -1193,6 +1223,10 @@ export default async function HusrapportPage({
     signatures,
     topRisks,
     recommendedActions,
+    technicalActions = [],
+    internalTasks = [],
+    readinessItems = [],
+    reportReadiness = 0,
     riskOverview,
     riskMatrix,
   } = reportData;
@@ -1404,6 +1438,40 @@ export default async function HusrapportPage({
           </article>
           <p className="leadText">{leadText}</p>
         </div>
+        {!publicMode ? (
+          <section className="operationalOverview noPrint">
+            <article>
+              <div className="panelTitle">
+                <h3>Rapportberedskap</h3>
+                <span>{reportReadiness} % klar</span>
+              </div>
+              <div className="readinessList">
+                {readinessItems.map((item) => (
+                  <div className={item.done ? "done" : "missing"} key={item.label}>
+                    <b>{item.done ? "✓" : "!"}</b>
+                    <strong>{item.label}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                ))}
+              </div>
+              {reportReadiness === 100 ? <strong className="readyBanner">Rapport klar för publicering</strong> : null}
+              {reportReadiness < 100 ? <a className="buttonLink" href={formHref}>Slutför rapport</a> : null}
+            </article>
+            <article>
+              <div className="panelTitle">
+                <h3>Kvar innan rapporten är klar</h3>
+                <span>{internalTasks.length} uppgifter</span>
+              </div>
+              {internalTasks.length ? (
+                <ul className="internalTaskList">
+                  {internalTasks.map((task) => <li key={task}>{task}</li>)}
+                </ul>
+              ) : (
+                <p>Inga interna spärrar kvar. Kontrollera rapporten och publicera när den är granskad.</p>
+              )}
+            </article>
+          </section>
+        ) : null}
         {scoreFacts.length > 0 ? (
           <div className="scoreFactGrid">
             {scoreFacts.map((fact, index) => <article key={`score-fact-${index}`}>{fact}</article>)}
@@ -1444,10 +1512,22 @@ export default async function HusrapportPage({
             ))}
           </article>
           <article className="reportCard">
-            <h3>Rekommenderade åtgärder</h3>
-            <ol className="numberList">
-              {recommendedActions.slice(0, 6).map((action, index) => <li key={`summary-action-${index}`}>{action}</li>)}
-            </ol>
+            <h3>Tekniska åtgärder</h3>
+            {technicalActions.length ? (
+              <ol className="numberList technicalActionList">
+                {technicalActions.map(([component, priority, action, time, cost], index) => (
+                  <li key={`technical-action-${index}`}>
+                    <a href="#prioriterad-atgardsplan">
+                      <strong>{component}</strong>
+                      <span>{priority} · {time} · {cost}</span>
+                      <small>{action}</small>
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p>Inga tekniska åtgärder är verifierade ännu.</p>
+            )}
           </article>
         </div>
         {assessmentRows.length > 0 ? (
@@ -1618,7 +1698,7 @@ export default async function HusrapportPage({
         )}
       </section>
 
-      <section className="reportPage">
+      <section className="reportPage" id="prioriterad-atgardsplan">
         <SectionHeader no="8" title="Prioriterad åtgärdsplan & paket" />
         {!publicMode && priorityRows.length > 0 && (
           <table>
