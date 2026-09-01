@@ -121,6 +121,7 @@ const sourceOptions = [
   "Ej åtkomligt",
   "Ej aktuellt",
 ];
+const measurementStatusOptions = ["Mätt", "Ej mätt", "Ej aktuellt", "Ej åtkomligt"];
 
 const fieldSuggestions: Record<string, string[]> = {
   foundation: ["Platta på mark", "Källare", "Krypgrund", "Torpargrund", "Suterräng", "Ej kontrollerat"],
@@ -249,6 +250,12 @@ function hasValue(value: AnswerValue | undefined) {
     return Object.values(value).some((item) => String(item ?? "").trim().length > 0);
   }
   return String(value ?? "").trim().length > 0;
+}
+
+function measurementStatus(value: AnswerValue | undefined, measuredValue: AnswerValue | undefined) {
+  const raw = String(value ?? "").trim();
+  if (measurementStatusOptions.includes(raw)) return raw;
+  return hasValue(measuredValue) ? "Mätt" : "Ej mätt";
 }
 
 function hasComponentRowValue(row: ComponentRegisterRow) {
@@ -1939,12 +1946,28 @@ export default function HusstatusFormView({
                 const photosKey = `${field.key}__photos`;
                 const photos = photoArray(answers[photosKey]);
                 const canAttachPhotos = fieldAllowsPhotos(section.id, field);
+                const isMeasurementField = field.type === "number" && field.source;
+                const measurementKey = `${field.key}__measurement_status`;
+                const currentMeasurementStatus = measurementStatus(answers[measurementKey], answers[field.key]);
 
                 return (
                   <div className={canAttachPhotos ? "rvmField withPhotos" : "rvmField"} key={field.key}>
                     <label>
                   <span>{field.label}</span>
-                  <FieldControl field={field} value={answers[field.key]} onChange={(value) => setStructuredAnswer(field.key, value)} />
+                  {isMeasurementField ? (
+                    <select
+                      className="sourceSelect"
+                      value={currentMeasurementStatus}
+                      onChange={(event) => setStructuredAnswer(measurementKey, event.target.value)}
+                    >
+                      {measurementStatusOptions.map((option) => <option key={option}>{option}</option>)}
+                    </select>
+                  ) : null}
+                  {!isMeasurementField || currentMeasurementStatus === "Mätt" ? (
+                    <FieldControl field={field} value={answers[field.key]} onChange={(value) => setStructuredAnswer(field.key, value)} />
+                  ) : (
+                    <p className="huscheckHint">Inget mätvärde används i scoring när status är {currentMeasurementStatus.toLowerCase()}.</p>
+                  )}
                   {field.source ? (
                     <select
                       className="sourceSelect"

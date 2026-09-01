@@ -46,6 +46,7 @@ const componentRules: ComponentRule[] = [
   { typeName: "Köksblandare", category: "Tappvatten", pattern: /\b(?:kökskran|kokskran|köksblandare|koksblandare|blandare\s+kök|blandare\s+kok)\b/i },
   { typeName: "Tvättställsblandare", category: "Tappvatten", brand: "Mora", pattern: /\bmora\b.*\btvättställsblandare\b/i },
   { typeName: "Värmepanna", category: "Värmesystem", brand: "CTC", pattern: /\bctc\b.*\b(?:värmepanna|elpanna|panna)\b/i, modelPattern: /\bctc\s+(.+?)\s+(?:värmepanna|elpanna|panna)\b/i },
+  { typeName: "Värmepanna", category: "Värmesystem", brand: "CTC", pattern: /\bctc\b.*\btotal\b/i, modelPattern: /\b(total)\b/i },
   { typeName: "Diskmaskin", category: "Kök", brand: "Bosch", pattern: /\bbosch\b.*\bdiskmaskin\b/i, modelPattern: /\bbosch\s+(.+?)\s+diskmaskin\b/i },
   { typeName: "Varmvattenberedare", category: "Varmvatten", brand: "NIBE", pattern: /\bnibe\b.*\b(?:varmvattenberedare|vvb)\b/i },
   { typeName: "Värmepump", category: "Värmesystem", brand: "NIBE", pattern: /\bnibe\b.*\bf\d{3,5}-?\d*\b/i, modelPattern: /\b(f\d{3,5}-?\d*)\b/i },
@@ -58,6 +59,7 @@ const componentRules: ComponentRule[] = [
   { typeName: "Cirkulationspump", category: "Cirkulationspump", brand: "Wilo", pattern: /\bwilo\b|\byonos\b|\bstratos\b|\bstar[-\s]?rs\b/i, modelPattern: /\b(yonos\s?[a-z0-9 /-]*|stratos\s?[a-z0-9 /-]*|star[-\s]?rs\s?\d{1,2}\/\d{1,2})\b/i },
   { typeName: "Expansionskärl", category: "Värmesystem", brand: "Altech", pattern: /\baltech\b.*\bn\s?\d+\b/i, modelPattern: /\b(n\s?\d+)\b/i },
   { typeName: "Expansionskärl", category: "Värmesystem", brand: "Reflex", pattern: /\breflex\b.*\bn\s?\d+\b/i, modelPattern: /\b(n\s?\d+)\b/i },
+  { typeName: "Expansionskärl", category: "Värmesystem", brand: "Watts", pattern: /\bwatts\b.*\b(?:industries|expansionskärl|expansionskarl|\d+\s?l)\b/i, modelPattern: /\b(?:watts\s+)?(industries\s+\d+\s?l|\d+\s?l)\b/i },
   { typeName: "Golvbrunn", category: "Avlopp", brand: "Purus", pattern: /\bpurus\b|\boden\s?\d*\b/i, modelPattern: /\b(oden\s?\d*)\b/i },
   { typeName: "Blandare", category: "Tappvatten", brand: "FM Mattsson", pattern: /\bfm\s?matt?sson\b|\b9000\s?xe\b/i, modelPattern: /\b(9000\s?xe)\b/i },
   { typeName: "Blandare", category: "Tappvatten", brand: "Mora", pattern: /\bmora\b.*\bcera\b/i, modelPattern: /\b(cera\s?[a-z0-9 -]*)\b/i },
@@ -78,6 +80,8 @@ const knownBrands = [
   ["esbe", "ESBE"],
   ["altech", "Altech"],
   ["reflex", "Reflex"],
+  ["watts industries", "Watts"],
+  ["watts", "Watts"],
 ] as const;
 
 const knownLocations = [

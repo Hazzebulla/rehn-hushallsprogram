@@ -4,6 +4,7 @@ import { houseReportStatusLabel } from "../../lib/house-report-status";
 import { calculateHusstatusScore } from "../../lib/husstatus-scoring";
 import { scoringForReportView } from "../../lib/husstatus-report-snapshot";
 import type { RiskMatrixPoint } from "../../lib/husstatus-scoring";
+import { measuredNumber, normalizeHusstatus } from "../../lib/husstatus-normalization";
 import { rvmFieldCount, rvmSections } from "../admin/husstatus-form/spec";
 import { updateHouseReportStatusAction } from "./actions";
 import PrintReportButton from "./print-button";
@@ -234,6 +235,10 @@ function numberAnswer(answers: Map<string, string>, key: string) {
   return Number.isFinite(value) ? value : undefined;
 }
 
+function measuredAnswer(rawAnswers: Map<string, unknown>, key: string) {
+  return measuredNumber(Object.fromEntries(rawAnswers), key);
+}
+
 function textAnswer(answers: Map<string, string>, key: string) {
   return String(answers.get(key) ?? "").trim();
 }
@@ -433,7 +438,8 @@ function componentStatusFromText(value: string): { status: string; riskLevel: st
 }
 
 function formComponentsFromAnswers(rawAnswers: Map<string, unknown>): ReportComponent[] {
-  const rawRows = rawAnswers.get("component_register_rows");
+  const normalized = normalizeHusstatus(Object.fromEntries(rawAnswers));
+  const rawRows = normalized.components.length ? normalized.components : rawAnswers.get("component_register_rows");
   if (!Array.isArray(rawRows)) return [];
 
   return rawRows
@@ -842,27 +848,27 @@ async function getReportData(propertyId?: string, selectedReportId?: string): Pr
 
     const rawDriftRows: Array<[string, string | number | undefined, string] | undefined> = [
       ["Utetemp live", liveWeather?.value ?? "Ej uppmätt", ""],
-      ["Utetemp kontroll", measurementLabel(numberAnswer(latestAnswers, "outdoor_temp_c"), "°C"), ""],
+      ["Utetemp kontroll", measurementLabel(measuredAnswer(latestRawAnswers, "outdoor_temp_c"), "°C"), ""],
       ["Innetemp", textAnswer(latestAnswers, "residents_temp") || "Ej uppmätt", ""],
-      ["Framledning", measurementLabel(numberAnswer(latestAnswers, "supply_temp_c"), "°C"), ""],
-      ["Retur", measurementLabel(numberAnswer(latestAnswers, "return_temp_c"), "°C"), ""],
-      ["Brine in", measurementLabel(numberAnswer(latestAnswers, "brine_in_c"), "°C"), ""],
-      ["Brine ut", measurementLabel(numberAnswer(latestAnswers, "brine_out_c"), "°C"), ""],
-      ["VV nära", measurementLabel(numberAnswer(latestAnswers, "nearest_tap_c"), "°C"), ""],
-      ["VV längst bort", measurementLabel(numberAnswer(latestAnswers, "furthest_tap_c"), "°C"), ""],
+      ["Framledning", measurementLabel(measuredAnswer(latestRawAnswers, "supply_temp_c"), "°C"), ""],
+      ["Retur", measurementLabel(measuredAnswer(latestRawAnswers, "return_temp_c"), "°C"), ""],
+      ["Brine in", measurementLabel(measuredAnswer(latestRawAnswers, "brine_in_c"), "°C"), ""],
+      ["Brine ut", measurementLabel(measuredAnswer(latestRawAnswers, "brine_out_c"), "°C"), ""],
+      ["VV nära", measurementLabel(measuredAnswer(latestRawAnswers, "nearest_tap_c"), "°C"), ""],
+      ["VV längst bort", measurementLabel(measuredAnswer(latestRawAnswers, "furthest_tap_c"), "°C"), ""],
     ];
     const driftRows = rawDriftRows
       .filter((row): row is [string, string | number | undefined, string] => Boolean(row))
       .map(([label, value, unit]) => [String(label), `${value}${unit ? ` ${unit}` : ""}`]);
 
-    const supply = numberAnswer(latestAnswers, "supply_temp_c");
-    const ret = numberAnswer(latestAnswers, "return_temp_c");
-    const brineIn = numberAnswer(latestAnswers, "brine_in_c");
-    const brineOut = numberAnswer(latestAnswers, "brine_out_c");
-    const vvNear = numberAnswer(latestAnswers, "nearest_tap_c");
-    const vvFar = numberAnswer(latestAnswers, "furthest_tap_c");
-    const electricity = numberAnswer(latestAnswers, "electricity_kwh");
-    const waterUse = numberAnswer(latestAnswers, "water_m3");
+    const supply = measuredAnswer(latestRawAnswers, "supply_temp_c");
+    const ret = measuredAnswer(latestRawAnswers, "return_temp_c");
+    const brineIn = measuredAnswer(latestRawAnswers, "brine_in_c");
+    const brineOut = measuredAnswer(latestRawAnswers, "brine_out_c");
+    const vvNear = measuredAnswer(latestRawAnswers, "nearest_tap_c");
+    const vvFar = measuredAnswer(latestRawAnswers, "furthest_tap_c");
+    const electricity = measuredAnswer(latestRawAnswers, "electricity_kwh");
+    const waterUse = measuredAnswer(latestRawAnswers, "water_m3");
     const energyTrend: BarDatum[] = [
       electricity !== undefined ? { label: "El kWh", value: Math.max(4, Math.min(100, electricity / 260)) } : undefined,
       waterUse !== undefined ? { label: "Vatten", value: Math.max(4, Math.min(100, waterUse / 2.5)) } : undefined,

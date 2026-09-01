@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { parseComponentInput } from "../../../lib/component-input-parser";
 import { calculateHusstatusScore } from "../../../lib/husstatus-scoring";
+import { normalizeHusstatus } from "../../../lib/husstatus-normalization";
 import { buildImageChecklist, summarizeImageChecklist, type ImageChecklistStatusMap, type SectionStatusMap } from "./image-checklist";
 import { isRvmFieldVisible, rvmFieldCount, rvmSections } from "./spec";
 
@@ -50,7 +51,7 @@ type SignatureEntry = {
 
 type SignatureMap = Record<string, SignatureEntry>;
 
-type Answers = Record<string, string | string[] | ComponentRegisterRow[] | PhotoAttachment[] | ImageChecklistStatusMap | SectionStatusMap | SignatureMap>;
+type Answers = Record<string, unknown>;
 
 async function ensureTemplateVersion() {
   const template = await prisma.formTemplate.upsert({
@@ -129,6 +130,32 @@ function activeAnswersForValidation(answers: Answers): Answers {
       && isFieldActive(answers, key),
     ),
   ) as Answers;
+}
+
+function withNormalizedHusstatusData(answers: Answers): Answers {
+  const normalized = normalizeHusstatus(answers);
+  return {
+    ...answers,
+    component_register_rows: normalized.components,
+    normalized_measurements: normalized.measurements,
+    normalized_observations: normalized.observations,
+  };
+}
+
+function scoringAnswersFrom(answers: Answers): Answers {
+  const normalized = normalizeHusstatus(answers);
+  const measuredAnswers = Object.fromEntries(
+    normalized.measurements.map((measurement) => [
+      measurement.key,
+      measurement.measurementStatus === "Mätt" && measurement.value !== undefined ? String(measurement.value) : "",
+    ]),
+  );
+  return activeAnswersForValidation({
+    ...normalized.technicalAnswers,
+    ...measuredAnswers,
+    component_register_rows: normalized.components,
+    normalized_observations: normalized.observations,
+  });
 }
 
 function activeFieldCount(answers: Answers) {
@@ -456,7 +483,7 @@ export async function autosaveHusstatusDraftAction(formData: FormData) {
     const parsedAnswers = JSON.parse(payload) as Answers;
     const target = await resolveSubmissionTarget(propertyId, reportId || undefined);
     if (!target.ok) return { ok: false, message: target.message };
-    const answers = reportId ? enforceTargetIdentityAnswers(parsedAnswers, target.property) : parsedAnswers;
+    const answers = withNormalizedHusstatusData(reportId ? enforceTargetIdentityAnswers(parsedAnswers, target.property) : parsedAnswers);
 
     const entries = filledEntries(answers);
     await replaceSubmissionAnswers(target.submission.id, entries);
@@ -491,10 +518,11 @@ export async function completeHusstatusFormAction(formData: FormData) {
     const target = await resolveSubmissionTarget(propertyId, reportId || undefined);
     if (!target.ok) return { ok: false, message: target.message };
     const { property } = target;
-    const answers = completionDefaults(reportId ? enforceTargetIdentityAnswers(parsedAnswers, property) : parsedAnswers);
+    const answers = withNormalizedHusstatusData(completionDefaults(reportId ? enforceTargetIdentityAnswers(parsedAnswers, property) : parsedAnswers));
 
     const entries = filledEntries(answers);
     const validationAnswers = activeAnswersForValidation(answers);
+    const scoringAnswers = scoringAnswersFrom(answers);
     const validationEntries = filledEntries(validationAnswers);
     const minimumRequired = ["customer_name", "property_address", "scope", "overall_status", "rvm_signer"];
     const missing = minimumRequired.filter((key) => isFieldActive(answers, key) && !validationEntries.some(([fieldKey]) => fieldKey === key));
@@ -535,7 +563,7 @@ export async function completeHusstatusFormAction(formData: FormData) {
     const scoringComponents = isSectionActive(answers, 19) && Array.isArray(answers.component_register_rows)
       ? answers.component_register_rows as ComponentRegisterRow[]
       : [];
-    const scoring = calculateHusstatusScore(validationAnswers, scoringComponents, {
+    const scoring = calculateHusstatusScore(scoringAnswers, scoringComponents, {
       totalControlPoints: activeFieldCount(answers),
     });
     const healthExplanation = {
