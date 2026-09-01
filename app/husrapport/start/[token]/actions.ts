@@ -25,6 +25,7 @@ export type CustomerPreInspectionResult =
       address: string;
       propertyId: string;
       reportId?: string;
+      submittedAt?: string;
     }
   | { ok: false; message: string };
 
@@ -64,6 +65,19 @@ export async function autosaveCustomerPreInspectionAction(
     const link = await loadLink(token);
     if (!link) return { ok: false, message: "Länken är ogiltig eller har tagits bort." };
     if (link.expiresAt && link.expiresAt < new Date()) return { ok: false, message: "Länken har gått ut." };
+    if (link.completedAt) {
+      const storedPayload = payloadFromStored(link.payload);
+      return {
+        ok: true,
+        completed: true,
+        message: "Formuläret är redan inskickat.",
+        customerName: fullName(storedPayload),
+        address: fullAddress(storedPayload),
+        propertyId: link.propertyId ?? "",
+        reportId: link.reportId ?? undefined,
+        submittedAt: link.completedAt.toISOString(),
+      };
+    }
 
     const nextPayload = { ...payloadFromStored(link.payload), ...payload };
     await prisma.customerPreInspectionLink.update({
@@ -99,6 +113,19 @@ export async function submitCustomerPreInspectionAction(
     const link = await loadLink(token);
     if (!link) return { ok: false, message: "Länken är ogiltig eller har tagits bort." };
     if (link.expiresAt && link.expiresAt < new Date()) return { ok: false, message: "Länken har gått ut." };
+    if (link.completedAt) {
+      const storedPayload = payloadFromStored(link.payload);
+      return {
+        ok: true,
+        completed: true,
+        message: "Formuläret är redan inskickat.",
+        customerName: fullName(storedPayload),
+        address: fullAddress(storedPayload),
+        propertyId: link.propertyId ?? "",
+        reportId: link.reportId ?? undefined,
+        submittedAt: link.completedAt.toISOString(),
+      };
+    }
 
     const validationMessage = validatePayload(payload);
     if (validationMessage) return { ok: false, message: validationMessage };
@@ -116,6 +143,7 @@ export async function submitCustomerPreInspectionAction(
     });
 
     const report = await ensurePreInspectionHouseReport(property.id, submission.id);
+    const completedAt = new Date();
 
     await prisma.customerPreInspectionLink.update({
       where: { id: link.id },
@@ -126,7 +154,7 @@ export async function submitCustomerPreInspectionAction(
         reportId: report.id,
         status: "customer_form_completed",
         payload,
-        completedAt: new Date(),
+        completedAt,
         sourceSummary: {
           source: "customer_preinspection",
           fieldCount,
@@ -167,6 +195,7 @@ export async function submitCustomerPreInspectionAction(
       address: fullAddress(payload),
       propertyId: property.id,
       reportId: report.id,
+      submittedAt: completedAt.toISOString(),
     };
   } catch {
     return { ok: false, message: "Formuläret kunde inte skickas in just nu. Försök igen om en stund." };

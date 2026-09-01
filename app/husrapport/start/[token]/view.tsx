@@ -6,6 +6,7 @@ import {
   type CustomerPreInspectionPayload,
   type CustomerPreInspectionPhoto,
 } from "../../../../lib/customer-preinspection";
+import { customerConfirmationDetails } from "../../../../lib/customer-confirmation";
 import { autosaveCustomerPreInspectionAction, submitCustomerPreInspectionAction, type CustomerPreInspectionResult } from "./actions";
 
 const propertyTypes = ["Villa", "Radhus", "Fritidshus", "Parhus", "Kedjehus", "Annat"];
@@ -198,27 +199,36 @@ export default function CustomerPreInspectionView({
   token,
   initialPayload,
   initialStatus,
+  initialCompletedAt,
 }: {
   token: string;
   initialPayload: CustomerPreInspectionPayload;
   initialStatus: string;
+  initialCompletedAt: string | null;
 }) {
   const [payload, setPayload] = useState<CustomerPreInspectionPayload>({ ...emptyCustomerPreInspectionPayload, ...initialPayload });
   const [step, setStep] = useState(1);
-  const [message, setMessage] = useState(initialStatus === "customer_form_completed" ? "Formuläret är redan inskickat. Du kan justera och skicka igen om något blivit fel." : "");
+  const [message, setMessage] = useState("");
   const [result, setResult] = useState<CustomerPreInspectionResult | null>(null);
   const [isPending, startTransition] = useTransition();
   const storageKey = `rvm-customer-preinspection-${token}`;
   const progress = useMemo(() => progressFor(step), [step]);
+  const completed = initialStatus === "customer_form_completed" || Boolean(result?.ok && result.completed);
+  const confirmation = customerConfirmationDetails(
+    result?.ok && result.completed ? payload : { ...emptyCustomerPreInspectionPayload, ...initialPayload },
+    result?.ok && result.completed ? result.submittedAt : initialCompletedAt,
+  );
 
   useEffect(() => {
+    if (completed) return;
     const saved = window.localStorage.getItem(storageKey);
     if (saved) setPayload((current) => ({ ...current, ...JSON.parse(saved) }));
-  }, [storageKey]);
+  }, [completed, storageKey]);
 
   useEffect(() => {
+    if (completed) return;
     window.localStorage.setItem(storageKey, JSON.stringify(payload));
-  }, [payload, storageKey]);
+  }, [completed, payload, storageKey]);
 
   function update<K extends keyof CustomerPreInspectionPayload>(key: K, value: CustomerPreInspectionPayload[K]) {
     setPayload((current) => ({ ...current, [key]: value }));
@@ -240,24 +250,24 @@ export default function CustomerPreInspectionView({
     });
   }
 
-  if (result?.ok && result.completed) {
+  if (completed) {
     return (
       <main className="huscheckShell">
         <section className="huscheckComplete">
           <p className="sectionKicker">RVM Husrapport</p>
           <h1>Tack!</h1>
-          <p>Dina uppgifter har sparats inför din Husrapport.</p>
+          <p>Dina uppgifter är inskickade till Rehn VVS & Montage.</p>
           <div className="miniReportPoints">
             <article className="green">
-              <strong>{result.customerName}</strong>
-              <p>{result.address}</p>
+              <strong>{confirmation.customerName}</strong>
+              <p>{confirmation.address}</p>
             </article>
             <article>
-              <strong>Nästa steg</strong>
-              <p>När vi kommer på plats kompletterar vi rapporten genom att kontrollera installationer, dokumentera produkter, fotografera relevanta delar och identifiera risker eller rekommenderade åtgärder.</p>
+              <strong>Status</strong>
+              <p>{confirmation.status}{confirmation.submittedAt ? ` · ${confirmation.submittedAt}` : ""}</p>
             </article>
           </div>
-          <p className="huscheckDisclaimer">Du behöver inte fylla i mer just nu.</p>
+          <p className="huscheckDisclaimer">Vi använder svaren som underlag inför kontrollen av fastigheten.</p>
         </section>
       </main>
     );

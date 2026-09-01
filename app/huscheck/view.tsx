@@ -294,7 +294,6 @@ export default function HuscheckView() {
           <p className="huscheckDisclaimer">
             Detta är en preliminär sammanställning baserad på uppgifter du själv har lämnat och ersätter inte en teknisk kontroll på plats.
           </p>
-          <a className="buttonLink" href="/">Till startsidan</a>
         </section>
       </main>
     );

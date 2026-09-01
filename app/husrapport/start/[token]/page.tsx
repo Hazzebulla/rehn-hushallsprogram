@@ -21,6 +21,7 @@ export default async function CustomerPreInspectionPage({ params }: PageProps) {
       token={token}
       initialPayload={payloadFromStored(link.payload)}
       initialStatus={link.status}
+      initialCompletedAt={link.completedAt?.toISOString() ?? null}
     />
   );
 }
