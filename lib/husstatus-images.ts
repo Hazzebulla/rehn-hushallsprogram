@@ -91,8 +91,9 @@ function isPhoto(value: unknown): value is PhotoLike {
 }
 
 function normalizePhoto(photo: PhotoLike, fallbackId: string) {
+  const sourceId = String(photo.id ?? "photo");
   return {
-    id: String(photo.id ?? fallbackId),
+    id: `${fallbackId}-${sourceId}`,
     fileName: String(photo.name ?? "Bild"),
     mimeType: String(photo.mimeType ?? "image/jpeg"),
     size: Number(photo.size ?? 0),
