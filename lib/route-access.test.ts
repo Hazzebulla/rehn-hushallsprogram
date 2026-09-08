@@ -3,6 +3,7 @@ import { isApiRoute, isPublicRoute, requiresSession } from "./route-access";
 
 const publicCustomerRoutes = [
   "/login",
+  "/huscheck",
   "/rapport/rvm_public_token_123456789012345678901234",
   "/husrapport/start/customer_token_123456789012345678901234",
 ];
@@ -18,7 +19,6 @@ const internalRoutes = [
   "/admin/customers",
   "/dashboard",
   "/kunder",
-  "/huscheck",
   "/husrapport",
   "/demo/inspection",
   "/api/admin/reports/report_1/customer-answers",
