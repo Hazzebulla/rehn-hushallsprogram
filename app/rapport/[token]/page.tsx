@@ -41,6 +41,7 @@ export default async function PublicReportPage({ params }: PublicReportPageProps
       id: true,
       status: true,
       publicAccessEnabled: true,
+      publicAccessToken: true,
       companyId: true,
     },
   });
