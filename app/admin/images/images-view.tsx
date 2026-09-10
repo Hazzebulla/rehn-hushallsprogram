@@ -23,6 +23,7 @@ function searchableText(group: CustomerImageGroup) {
     group.customerName,
     group.propertyName,
     group.address,
+    group.images.length ? "har bilder" : "saknar bilder inga bilder",
     ...group.images.flatMap((image) => [image.sectionTitle, image.fieldLabel, image.fileName]),
   ].join(" ").toLowerCase();
 }
@@ -87,18 +88,24 @@ export default function ImagesView({ groups }: ImagesViewProps) {
                     <b>{group.images.length} bilder</b>
                     <em>{customerVisible} kundsynliga</em>
                   </div>
-                  <div className="imageCustomerThumbs" aria-hidden="true">
-                    {group.images.slice(0, 3).map((image) => (
-                      <Image
-                        alt=""
-                        height={54}
-                        key={image.id}
-                        src={image.dataUrl}
-                        unoptimized
-                        width={72}
-                      />
-                    ))}
-                  </div>
+                  {group.images.length ? (
+                    <div className="imageCustomerThumbs" aria-hidden="true">
+                      {group.images.slice(0, 3).map((image) => (
+                        <Image
+                          alt=""
+                          height={54}
+                          key={image.id}
+                          src={image.dataUrl}
+                          unoptimized
+                          width={72}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="imageCustomerThumbs empty" aria-hidden="true">
+                      <span>Inga bilder</span>
+                    </div>
+                  )}
                   <small>Senast: {formatDate(latest?.createdAt ?? "")}</small>
                 </button>
               );
@@ -125,25 +132,33 @@ export default function ImagesView({ groups }: ImagesViewProps) {
                 <span>{activeGroup.images.filter((image) => image.visibility === "INTERNAL").length} interna</span>
               </div>
 
-              <div className="imageLibraryGrid">
-                {activeGroup.images.map((image) => (
-                  <figure key={image.id}>
-                    <Image
-                      alt={`${image.fieldLabel} - ${image.customerName}`}
-                      height={180}
-                      src={image.dataUrl}
-                      unoptimized
-                      width={240}
-                    />
-                    <figcaption>
-                      <span>{image.sectionTitle}</span>
-                      <strong>{image.fieldLabel}</strong>
-                      <small>{image.visibility === "CUSTOMER" ? "Kundsynlig" : "Intern"} · {image.fileName}</small>
-                      <small>{formatDate(image.createdAt)}</small>
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
+              {activeGroup.images.length ? (
+                <div className="imageLibraryGrid">
+                  {activeGroup.images.map((image) => (
+                    <figure key={image.id}>
+                      <Image
+                        alt={`${image.fieldLabel} - ${image.customerName}`}
+                        height={180}
+                        src={image.dataUrl}
+                        unoptimized
+                        width={240}
+                      />
+                      <figcaption>
+                        <span>{image.sectionTitle}</span>
+                        <strong>{image.fieldLabel}</strong>
+                        <small>{image.visibility === "CUSTOMER" ? "Kundsynlig" : "Intern"} · {image.fileName}</small>
+                        <small>{formatDate(image.createdAt)}</small>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              ) : (
+                <div className="emptyState">
+                  <strong>Inga bilder sparade för den här fastigheten.</strong>
+                  <span>Öppna formuläret, välj fastigheten och lägg till bilder under rätt fråga eller i avsnitt 25.</span>
+                  <a className="buttonLink" href={`/admin/husstatus-form?propertyId=${activeGroup.propertyId}`}>Lägg till bilder</a>
+                </div>
+              )}
             </article>
           ) : null}
         </div>
