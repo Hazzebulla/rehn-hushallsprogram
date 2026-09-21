@@ -375,6 +375,55 @@ function lightenStoredPhotos(value: unknown): unknown {
   return Object.fromEntries(Object.entries(record).map(([key, item]) => [key, lightenStoredPhotos(item)]));
 }
 
+function collectPhotoIds(value: unknown, ids = new Set<string>()) {
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectPhotoIds(item, ids));
+    return ids;
+  }
+  if (!value || typeof value !== "object") return ids;
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.id === "string" && typeof record.mimeType === "string" && "dataUrl" in record) {
+    ids.add(record.id);
+  }
+  Object.values(record).forEach((item) => collectPhotoIds(item, ids));
+  return ids;
+}
+
+function photoPayloadForSave(value: unknown, persistedPhotoIds: Set<string>): unknown {
+  if (Array.isArray(value)) return value.map((item) => photoPayloadForSave(item, persistedPhotoIds));
+  if (!value || typeof value !== "object") return value;
+
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.id === "string"
+    && typeof record.mimeType === "string"
+    && typeof record.dataUrl === "string"
+    && persistedPhotoIds.has(record.id)
+  ) {
+    return { ...record, dataUrl: "" };
+  }
+
+  return Object.fromEntries(Object.entries(record).map(([key, item]) => [key, photoPayloadForSave(item, persistedPhotoIds)]));
+}
+
+function readLocalDraft(storageKey: string) {
+  try {
+    return window.localStorage.getItem(storageKey);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalDraft(storageKey: string, answers: Answers) {
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(lightenStoredPhotos(answers)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function fieldAllowsPhotos(sectionId: number, field: RvmField) {
   if (sectionId === 3) return true;
   if (sectionId === 25) return true;
@@ -1284,6 +1333,7 @@ export default function HusstatusFormView({
   const [isPending, startTransition] = useTransition();
   const hydratedRef = useRef(false);
   const lastSavedPayloadRef = useRef("");
+  const persistedPhotoIdsRef = useRef(collectPhotoIds(initialAnswers));
   const storageKey = lockedReportId
     ? `rvm-husstatus-report-${lockedReportId}`
     : `rvm-husstatus-draft-${propertyId || "none"}`;
@@ -1344,15 +1394,17 @@ export default function HusstatusFormView({
       return false;
     }
 
-    const payload = JSON.stringify(answers);
-    window.localStorage.setItem(storageKey, payload);
+    const payload = JSON.stringify(photoPayloadForSave(answers, persistedPhotoIdsRef.current));
+    const localSaved = writeLocalDraft(storageKey, answers);
 
     if (!databaseOnline) {
       lastSavedPayloadRef.current = payload;
       const time = savedTimeLabel();
       setLastSavedAt(time);
-      setMessage(`Sparat lokalt kl ${time}. Databasen krävs för att slutföra rapporten.`);
-      return true;
+      setMessage(localSaved
+        ? `Formulärtext sparad lokalt kl ${time}. Bilder synkas när databasen svarar igen.`
+        : "Utkastet kunde inte lagras lokalt. Låt sidan vara öppen och försök spara när databasen svarar igen.");
+      return localSaved;
     }
 
     const formData = new FormData();
@@ -1361,7 +1413,8 @@ export default function HusstatusFormView({
     formData.set("answers", payload);
     const result = await autosaveHusstatusDraftAction(formData);
     if (result.ok) {
-      lastSavedPayloadRef.current = payload;
+      collectPhotoIds(answers).forEach((id) => persistedPhotoIdsRef.current.add(id));
+      lastSavedPayloadRef.current = JSON.stringify(photoPayloadForSave(answers, persistedPhotoIdsRef.current));
       const time = savedTimeLabel();
       setLastSavedAt(time);
       setMessage(`Sparat kl ${time}.`);
@@ -1373,8 +1426,15 @@ export default function HusstatusFormView({
 
   useEffect(() => {
     if (!propertyId) return;
-    const saved = lockedReportId ? null : window.localStorage.getItem(storageKey);
-    const loadedAnswers = lightenStoredPhotos(saved ? JSON.parse(saved) : initialAnswers) as Answers;
+    const saved = lockedReportId ? null : readLocalDraft(storageKey);
+    let localAnswers: Answers | null = null;
+    try {
+      localAnswers = saved ? JSON.parse(saved) as Answers : null;
+    } catch {
+      localAnswers = null;
+    }
+    persistedPhotoIdsRef.current = collectPhotoIds(initialAnswers);
+    const loadedAnswers = lightenStoredPhotos(localAnswers ?? initialAnswers) as Answers;
     const nextAnswers = selectedProperty && !lockedReportId
       ? mergeAutofillAnswers(loadedAnswers, propertyAutofillAnswers(selectedProperty))
       : loadedAnswers;
@@ -1382,15 +1442,15 @@ export default function HusstatusFormView({
     const nextPayload = JSON.stringify(nextAnswers);
     setAnswers(nextAnswers);
     setRegisterPaste(String(nextAnswers.component_register ?? ""));
-    window.localStorage.setItem(storageKey, nextPayload);
+    writeLocalDraft(storageKey, nextAnswers);
     lastSavedPayloadRef.current = loadedPayload === nextPayload ? nextPayload : loadedPayload;
     hydratedRef.current = true;
   }, [propertyId, storageKey, initialAnswers, selectedProperty, lockedReportId]);
 
   useEffect(() => {
     if (!propertyId || !hydratedRef.current) return;
-    const payload = JSON.stringify(answers);
-    window.localStorage.setItem(storageKey, payload);
+    const payload = JSON.stringify(photoPayloadForSave(answers, persistedPhotoIdsRef.current));
+    writeLocalDraft(storageKey, answers);
 
     if (!databaseOnline || saveableCount === 0 || payload === lastSavedPayloadRef.current) return;
     const timer = window.setTimeout(() => {
@@ -1401,7 +1461,8 @@ export default function HusstatusFormView({
       startTransition(async () => {
         const result = await autosaveHusstatusDraftAction(formData);
         if (result.ok) {
-          lastSavedPayloadRef.current = payload;
+          collectPhotoIds(answers).forEach((id) => persistedPhotoIdsRef.current.add(id));
+          lastSavedPayloadRef.current = JSON.stringify(photoPayloadForSave(answers, persistedPhotoIdsRef.current));
           const time = savedTimeLabel();
           setLastSavedAt(time);
           setMessage(`Sparat kl ${time}.`);
@@ -1646,7 +1707,7 @@ export default function HusstatusFormView({
     const formData = new FormData();
     formData.set("propertyId", propertyId);
     formData.set("reportId", lockedReportId);
-    formData.set("answers", JSON.stringify(answers));
+    formData.set("answers", JSON.stringify(photoPayloadForSave(answers, persistedPhotoIdsRef.current)));
 
     startTransition(async () => {
       const result = await completeHusstatusFormAction(formData);

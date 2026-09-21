@@ -465,14 +465,16 @@ export async function savePreInspectionAnswers(submissionId: string, payload: Cu
   const answers = mapPreInspectionToHusstatusAnswers(payload);
   const entries = filledEntries(answers);
 
-  await prisma.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId } });
-  await prisma.formAnswer.createMany({
-    data: entries.map(([fieldKey, value]) => ({
-      companyId: COMPANY_ID,
-      submissionId,
-      fieldKey,
-      value: wrapAnswer(value),
-    })),
+  await prisma.$transaction(async (tx) => {
+    await tx.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId } });
+    await tx.formAnswer.createMany({
+      data: entries.map(([fieldKey, value]) => ({
+        companyId: COMPANY_ID,
+        submissionId,
+        fieldKey,
+        value: wrapAnswer(value),
+      })),
+    });
   });
 
   return { answers, fieldCount: entries.length };

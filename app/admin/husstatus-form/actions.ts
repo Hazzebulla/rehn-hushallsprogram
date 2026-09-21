@@ -235,24 +235,26 @@ function mergeStoredPhotoData(incoming: unknown, existing: unknown): unknown {
 
 async function replaceSubmissionAnswers(submissionId: string, entries: ReturnType<typeof filledEntries>) {
   const fieldKeys = entries.map(([fieldKey]) => fieldKey);
-  const existingAnswers = fieldKeys.length
-    ? await prisma.formAnswer.findMany({
-        where: { companyId: COMPANY_ID, submissionId, fieldKey: { in: fieldKeys } },
-      })
-    : [];
-  const existingByField = new Map(existingAnswers.map((answer) => [answer.fieldKey, storedAnswerValue(answer.value)]));
-  const mergedEntries = entries.map(([fieldKey, value]) => [fieldKey, mergeStoredPhotoData(value, existingByField.get(fieldKey))] as const);
+  await prisma.$transaction(async (tx) => {
+    const existingAnswers = fieldKeys.length
+      ? await tx.formAnswer.findMany({
+          where: { companyId: COMPANY_ID, submissionId, fieldKey: { in: fieldKeys } },
+        })
+      : [];
+    const existingByField = new Map(existingAnswers.map((answer) => [answer.fieldKey, storedAnswerValue(answer.value)]));
+    const mergedEntries = entries.map(([fieldKey, value]) => [fieldKey, mergeStoredPhotoData(value, existingByField.get(fieldKey))] as const);
 
-  await prisma.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId } });
-  if (!mergedEntries.length) return;
+    await tx.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId } });
+    if (!mergedEntries.length) return;
 
-  await prisma.formAnswer.createMany({
-    data: mergedEntries.map(([fieldKey, value]) => ({
-      companyId: COMPANY_ID,
-      submissionId,
-      fieldKey,
-      value: (Array.isArray(value) ? { values: value } : { value }) as Prisma.InputJsonValue,
-    })),
+    await tx.formAnswer.createMany({
+      data: mergedEntries.map(([fieldKey, value]) => ({
+        companyId: COMPANY_ID,
+        submissionId,
+        fieldKey,
+        value: (Array.isArray(value) ? { values: value } : { value }) as Prisma.InputJsonValue,
+      })),
+    });
   });
 }
 
