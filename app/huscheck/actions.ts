@@ -377,14 +377,16 @@ export async function submitHuscheckAction(payload: HuscheckPayload): Promise<Hu
 
     const answers = mapToHusstatusAnswers(payload);
     const entries = filledEntries(answers);
-    await prisma.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId: submission.id } });
-    await prisma.formAnswer.createMany({
-      data: entries.map(([fieldKey, value]) => ({
-        companyId: COMPANY_ID,
-        submissionId: submission.id,
-        fieldKey,
-        value: wrapAnswer(value),
-      })),
+    await prisma.$transaction(async (tx) => {
+      await tx.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId: submission.id } });
+      await tx.formAnswer.createMany({
+        data: entries.map(([fieldKey, value]) => ({
+          companyId: COMPANY_ID,
+          submissionId: submission.id,
+          fieldKey,
+          value: wrapAnswer(value),
+        })),
+      });
     });
 
     await prisma.customerRequest.create({

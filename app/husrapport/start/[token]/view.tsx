@@ -7,6 +7,7 @@ import {
   type CustomerPreInspectionPhoto,
 } from "../../../../lib/customer-preinspection";
 import { customerConfirmationDetails } from "../../../../lib/customer-confirmation";
+import { loadBrowserDraft, removeBrowserDraft, saveBrowserDraft } from "../../../../lib/browser-draft-storage";
 import { autosaveCustomerPreInspectionAction, submitCustomerPreInspectionAction, type CustomerPreInspectionResult } from "./actions";
 
 const propertyTypes = ["Villa", "Radhus", "Fritidshus", "Parhus", "Kedjehus", "Annat"];
@@ -211,6 +212,7 @@ export default function CustomerPreInspectionView({
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<CustomerPreInspectionResult | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [draftLoaded, setDraftLoaded] = useState(false);
   const storageKey = `rvm-customer-preinspection-${token}`;
   const progress = useMemo(() => progressFor(step), [step]);
   const completed = initialStatus === "customer_form_completed" || Boolean(result?.ok && result.completed);
@@ -220,15 +222,29 @@ export default function CustomerPreInspectionView({
   );
 
   useEffect(() => {
-    if (completed) return;
-    const saved = window.localStorage.getItem(storageKey);
-    if (saved) setPayload((current) => ({ ...current, ...JSON.parse(saved) }));
+    if (completed) {
+      return;
+    }
+    let cancelled = false;
+    void loadBrowserDraft<CustomerPreInspectionPayload>(storageKey)
+      .then((saved) => {
+        if (saved && !cancelled) setPayload((current) => ({ ...current, ...saved }));
+      })
+      .finally(() => {
+        if (!cancelled) setDraftLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [completed, storageKey]);
 
   useEffect(() => {
-    if (completed) return;
-    window.localStorage.setItem(storageKey, JSON.stringify(payload));
-  }, [completed, payload, storageKey]);
+    if (completed || !draftLoaded) return;
+    const timer = window.setTimeout(() => {
+      void saveBrowserDraft(storageKey, payload);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [completed, draftLoaded, payload, storageKey]);
 
   function update<K extends keyof CustomerPreInspectionPayload>(key: K, value: CustomerPreInspectionPayload[K]) {
     setPayload((current) => ({ ...current, [key]: value }));
@@ -246,7 +262,7 @@ export default function CustomerPreInspectionView({
       const response = await submitCustomerPreInspectionAction(token, payload);
       setResult(response);
       setMessage(response.message);
-      if (response.ok) window.localStorage.removeItem(storageKey);
+      if (response.ok) void removeBrowserDraft(storageKey);
     });
   }
 

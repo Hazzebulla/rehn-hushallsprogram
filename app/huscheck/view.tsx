@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { loadBrowserDraft, removeBrowserDraft, saveBrowserDraft } from "../../lib/browser-draft-storage";
 import { submitHuscheckAction, type HuscheckPayload, type HuscheckPhoto, type HuscheckResult } from "./actions";
 
 const storageKey = "rvm-public-huscheck-draft-v1";
@@ -246,16 +247,30 @@ export default function HuscheckView() {
   const [result, setResult] = useState<HuscheckResult | null>(null);
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [draftLoaded, setDraftLoaded] = useState(false);
   const progress = useMemo(() => progressFor(payload, step), [payload, step]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(storageKey);
-    if (saved) setPayload({ ...emptyPayload, ...JSON.parse(saved) });
+    let cancelled = false;
+    void loadBrowserDraft<HuscheckPayload>(storageKey)
+      .then((saved) => {
+        if (saved && !cancelled) setPayload({ ...emptyPayload, ...saved });
+      })
+      .finally(() => {
+        if (!cancelled) setDraftLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(payload));
-  }, [payload]);
+    if (!draftLoaded) return;
+    const timer = window.setTimeout(() => {
+      void saveBrowserDraft(storageKey, payload);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [draftLoaded, payload]);
 
   function update<K extends keyof HuscheckPayload>(key: K, value: HuscheckPayload[K]) {
     setPayload((current) => ({ ...current, [key]: value }));
@@ -267,7 +282,7 @@ export default function HuscheckView() {
       const response = await submitHuscheckAction(payload);
       setResult(response);
       setMessage(response.message);
-      if (response.ok) window.localStorage.removeItem(storageKey);
+      if (response.ok) void removeBrowserDraft(storageKey);
     });
   }
 
