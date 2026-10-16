@@ -6,6 +6,7 @@ import { prisma } from "../../../lib/prisma";
 import { parseComponentInput } from "../../../lib/component-input-parser";
 import { calculateHusstatusScore } from "../../../lib/husstatus-scoring";
 import { normalizeHusstatus } from "../../../lib/husstatus-normalization";
+import { enforceReportTargetIdentity } from "../../../lib/report-target-identity";
 import { buildImageChecklist, summarizeImageChecklist, type ImageChecklistStatusMap, type SectionStatusMap } from "./image-checklist";
 import { isRvmFieldVisible, rvmFieldCount, rvmSections } from "./spec";
 
@@ -317,21 +318,6 @@ async function resolveSubmissionTarget(propertyId: string, reportId?: string) {
   return { ok: true as const, property: report.property, submission: report.submission, report };
 }
 
-function enforceTargetIdentityAnswers(answers: Answers, target: {
-  address: string;
-  propertyNo: string | null;
-  buildYear: number | null;
-  customer: { name: string; phone: string | null; invoiceEmail: string | null };
-}): Answers {
-  return {
-    ...answers,
-    customer_name: target.customer.name,
-    contact: [target.customer.phone, target.customer.invoiceEmail].filter(Boolean).join(" / "),
-    property_address: [target.propertyNo, target.address].filter(Boolean).join(" / "),
-    build_year: target.buildYear?.toString() ?? "",
-  };
-}
-
 async function nextReportNo() {
   const year = new Date().getFullYear();
   const count = await prisma.houseReport.count({
@@ -485,7 +471,7 @@ export async function autosaveHusstatusDraftAction(formData: FormData) {
     const parsedAnswers = JSON.parse(payload) as Answers;
     const target = await resolveSubmissionTarget(propertyId, reportId || undefined);
     if (!target.ok) return { ok: false, message: target.message };
-    const answers = withNormalizedHusstatusData(reportId ? enforceTargetIdentityAnswers(parsedAnswers, target.property) : parsedAnswers);
+    const answers = withNormalizedHusstatusData(enforceReportTargetIdentity(parsedAnswers, target.property));
 
     const entries = filledEntries(answers);
     await replaceSubmissionAnswers(target.submission.id, entries);
@@ -520,7 +506,7 @@ export async function completeHusstatusFormAction(formData: FormData) {
     const target = await resolveSubmissionTarget(propertyId, reportId || undefined);
     if (!target.ok) return { ok: false, message: target.message };
     const { property } = target;
-    const answers = withNormalizedHusstatusData(completionDefaults(reportId ? enforceTargetIdentityAnswers(parsedAnswers, property) : parsedAnswers));
+    const answers = withNormalizedHusstatusData(completionDefaults(enforceReportTargetIdentity(parsedAnswers, property)));
 
     const entries = filledEntries(answers);
     const validationAnswers = activeAnswersForValidation(answers);

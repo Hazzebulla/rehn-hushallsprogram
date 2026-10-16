@@ -162,12 +162,6 @@ type ReportData = {
   riskMatrix: RiskMatrixPoint[];
 };
 
-type ReportPropertyOption = {
-  id: string;
-  label: string;
-  detail: string;
-};
-
 type ReportComponent = {
   status: string;
   riskLevel: string;
@@ -476,25 +470,6 @@ function formComponentsFromAnswers(rawAnswers: Map<string, unknown>): ReportComp
         system: { name: systemName, category },
       };
     });
-}
-
-async function getReportProperties(): Promise<ReportPropertyOption[]> {
-  try {
-    const properties = await prisma.property.findMany({
-      where: { companyId: "org_rehn_vvs" },
-      include: { customer: true },
-      orderBy: { updatedAt: "desc" },
-      take: 30,
-    });
-
-    return properties.map((property) => ({
-      id: property.id,
-      label: property.propertyNo ?? property.address,
-      detail: `${property.customer.name} - ${property.address}`,
-    }));
-  } catch {
-    return [];
-  }
 }
 
 async function getReportData(propertyId?: string, selectedReportId?: string): Promise<ReportData> {
@@ -1179,10 +1154,10 @@ export default async function HusrapportPage({
   publicMode?: boolean;
 }) {
   const params = await searchParams;
-  const [reportData, reportProperties] = await Promise.all([
-    getReportData(publicMode ? undefined : params?.propertyId, publicReportId ?? params?.reportId),
-    publicMode ? [] : getReportProperties(),
-  ]);
+  const reportData = await getReportData(
+    publicMode ? undefined : params?.propertyId,
+    publicReportId ?? params?.reportId,
+  );
   const {
     propertyId,
     reportId,
@@ -1337,24 +1312,6 @@ export default async function HusrapportPage({
         <section className="reportGate noPrint">
           <strong>Underlaget är inte tillräckligt för en tillförlitlig statusbedömning.</strong>
           <p>Komplettera formuläret eller markera saknade uppgifter som Ej kontrollerat, Ej åtkomligt eller Ej aktuellt innan risk och teknisk status används.</p>
-        </section>
-      )}
-
-      {!publicMode && reportProperties.length > 0 && (
-        <section className="reportPropertySwitch noPrint" aria-label="Välj fastighet för husrapport">
-          <span>Testa rapport per fastighet</span>
-          <div>
-            {reportProperties.map((property) => (
-              <a
-                className={property.id === propertyId ? "active" : ""}
-                href={`/husrapport?propertyId=${property.id}`}
-                key={property.id}
-              >
-                <strong>{property.label}</strong>
-                <small>{property.detail}</small>
-              </a>
-            ))}
-          </div>
         </section>
       )}
 

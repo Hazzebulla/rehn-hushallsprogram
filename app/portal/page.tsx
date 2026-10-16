@@ -25,6 +25,21 @@ const fallbackPortal: PortalVm = {
   properties: [],
 };
 
+const unavailablePortal: PortalVm = {
+  customerId: "",
+  propertyId: "",
+  customerName: "Kund saknas",
+  propertyName: "Fastigheten kunde inte öppnas",
+  address: "Kontrollera länken och försök igen.",
+  health: 0,
+  risk: 0,
+  nextAction: "Ingen kunddata visas.",
+  databaseOnline: true,
+  docs: [],
+  images: [],
+  properties: [],
+};
+
 async function getPortalData(selectedPropertyId?: string): Promise<PortalVm> {
   try {
     const accounts = await prisma.customerPortalAccount.findMany({
@@ -52,9 +67,16 @@ async function getPortalData(selectedPropertyId?: string): Promise<PortalVm> {
       })),
     );
 
-    const selectedProperty = properties.find((property) => property.id === selectedPropertyId) ?? properties[0];
-    const account = accounts.find((item) => item.customerId === selectedProperty?.customerId) ?? accounts[0];
-    const property = account.customer.properties.find((item) => item.id === selectedProperty?.id) ?? account.customer.properties[0];
+    const selectedProperty = selectedPropertyId
+      ? properties.find((property) => property.id === selectedPropertyId)
+      : properties[0];
+    if (!selectedProperty) return unavailablePortal;
+
+    const account = accounts.find((item) => item.customerId === selectedProperty.customerId);
+    if (!account) return unavailablePortal;
+
+    const property = account.customer.properties.find((item) => item.id === selectedProperty.id);
+    if (!property) return unavailablePortal;
     const reportUrl = property?.id ? `/husrapport?propertyId=${property.id}` : "/husrapport";
     const explanation = property?.healthScore?.explanation as
       | { risk?: number; nextAction?: string }

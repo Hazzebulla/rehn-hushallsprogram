@@ -1,5 +1,6 @@
 import { prisma } from "../../../lib/prisma";
 import { technicalSummary } from "../../../lib/product-registry";
+import { reportTargetIdentityAnswers } from "../../../lib/report-target-identity";
 import AdminSidebar from "../admin-sidebar";
 import HusstatusFormView from "./view";
 import { rvmFieldCount, rvmSections } from "./spec";
@@ -23,20 +24,6 @@ function lightenStoredPhotos(value: unknown): unknown {
   }
 
   return Object.fromEntries(Object.entries(record).map(([key, item]) => [key, lightenStoredPhotos(item)]));
-}
-
-function reportIdentityAnswers(property: {
-  address: string;
-  propertyNo: string | null;
-  buildYear: number | null;
-  customer: { name: string; phone: string | null; invoiceEmail: string | null };
-}) {
-  return {
-    customer_name: property.customer.name,
-    contact: [property.customer.phone, property.customer.invoiceEmail].filter(Boolean).join(" / "),
-    property_address: [property.propertyNo, property.address].filter(Boolean).join(" / "),
-    build_year: property.buildYear?.toString() ?? "",
-  };
 }
 
 async function getFormData(selectedPropertyId?: string, selectedReportId?: string) {
@@ -101,6 +88,7 @@ async function getFormData(selectedPropertyId?: string, selectedReportId?: strin
       };
     }
     const propertyId = selectedReport?.propertyId ?? selectedPropertyId ?? properties[0]?.id;
+    const selectedProperty = selectedReport?.property ?? properties.find((property) => property.id === propertyId);
     const draftSubmission = !selectedReport && propertyId
       ? await prisma.formSubmission.findFirst({
           where: {
@@ -136,7 +124,7 @@ async function getFormData(selectedPropertyId?: string, selectedReportId?: strin
         ...Object.fromEntries(
           latestSubmission?.answers.map((answer) => [answer.fieldKey, lightenStoredPhotos(answerValue(answer.value))]) ?? [],
         ),
-        ...(selectedReport ? reportIdentityAnswers(selectedReport.property) : {}),
+        ...(selectedProperty ? reportTargetIdentityAnswers(selectedProperty) : {}),
       } as Record<string, unknown>,
       properties: properties.map((property) => ({
         id: property.id,

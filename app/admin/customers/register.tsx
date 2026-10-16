@@ -285,6 +285,11 @@ export default function CustomerRegister({
     () => customers.find((customer) => customer.id === selectedId) ?? customers[0],
     [customers, selectedId],
   );
+  const selectedPropertyId = selected?.properties[0]?.id ?? "";
+  const selectedPortalHref = selectedPropertyId ? `/portal?propertyId=${selectedPropertyId}` : "/portal";
+  const selectedReportHref = selected?.latestReportId
+    ? `/husrapport?reportId=${selected.latestReportId}`
+    : selectedPropertyId ? `/husrapport?propertyId=${selectedPropertyId}` : "/husrapport";
 
   const possibleDuplicate = useMemo(() => {
     const name = normal(customerNameFromForm(form));
@@ -493,8 +498,8 @@ export default function CustomerRegister({
           </div>
         </div>
         <div className="portalActions">
-          <a className="buttonLink" href="/portal">Visa kundportal</a>
-          <a className="buttonLink" href="/husrapport">Visa rapport</a>
+          <a className="buttonLink" href={selectedPortalHref}>Visa kundportal</a>
+          <a className="buttonLink" href={selectedReportHref}>Visa rapport</a>
         </div>
       </header>
 
@@ -774,10 +779,11 @@ export default function CustomerRegister({
               <button disabled={isPending} onClick={publishToPortal} type="button">
                 {isPending ? "Publicerar..." : "Publicera till kundportal"}
               </button>
-              {selected.latestReportId ? <a className="buttonLink" href={`/husrapport?reportId=${selected.latestReportId}`}>Öppna senaste rapport</a> : null}
+              <a className="buttonLink" href={selectedPortalHref}>Öppna kundportal</a>
+              <a className="buttonLink" href={selectedReportHref}>{selected.latestReportId ? "Öppna senaste rapport" : "Öppna rapportvy"}</a>
               <a className="buttonLink" href="/admin/new-report">Ny husrapport</a>
               <a className="buttonLink" href="/admin/properties">Lägg till fastighet</a>
-              <a className="buttonLink" href="/admin/husstatus-form">Starta VVS-genomgång</a>
+              <a className="buttonLink" href={selectedPropertyId ? `/admin/husstatus-form?propertyId=${selectedPropertyId}` : "/admin/husstatus-form"}>Starta VVS-genomgång</a>
             </div>
           </article>
 
