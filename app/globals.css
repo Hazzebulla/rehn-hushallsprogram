@@ -2154,6 +2154,114 @@ td {
   outline: none;
 }
 
+.mailVisualPreview {
+  overflow: hidden;
+  border: 1px solid rgba(72, 214, 230, 0.28);
+  background: #edf3f2;
+  color: #183335;
+}
+
+.mailVisualPreview > header {
+  padding: 22px 24px;
+  border-bottom: 4px solid #58c8d5;
+  background: #061617;
+}
+
+.mailVisualPreview > header p {
+  margin: 0;
+  color: #58c8d5;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+}
+
+.mailVisualPreview > header h4 {
+  margin: 9px 0 4px;
+  color: #fff;
+  font-size: 26px;
+}
+
+.mailVisualPreview > header span {
+  color: #a9c5c5;
+}
+
+.mailVisualBody {
+  display: grid;
+  gap: 18px;
+  padding: 22px 24px;
+}
+
+.mailScoreStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mailScoreStrip > div {
+  min-width: 0;
+  border: 1px solid #d5e4e5;
+  background: #f6faf9;
+  padding: 12px;
+}
+
+.mailScoreStrip span,
+.mailScoreStrip small {
+  display: block;
+  color: #527073;
+  font-size: 11px;
+}
+
+.mailScoreStrip span {
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mailScoreStrip strong {
+  display: block;
+  margin: 4px 0;
+  color: #082326;
+  font-size: 21px;
+  overflow-wrap: anywhere;
+}
+
+.mailPreviewText {
+  margin: 0;
+  color: #183335;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.mailPreviewCta {
+  justify-self: start;
+  padding: 12px 17px;
+  border-radius: 4px;
+  background: #58c8d5;
+  color: #031012;
+  font-weight: 900;
+}
+
+.mailVisualBody footer {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid #d5e4e5;
+  padding-top: 15px;
+  color: #527073;
+  font-size: 12px;
+}
+
+.mailVisualBody footer strong {
+  color: #183335;
+}
+
+.mailEditToggle {
+  min-height: 40px;
+  border: 1px solid rgba(72, 214, 230, 0.38);
+  background: transparent;
+  color: var(--cyan);
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .mailPreviewGrid input {
   min-height: 42px;
   padding: 0 12px;
@@ -7766,6 +7874,7 @@ td {
   }
 
   .mailTemplateTabs,
+  .mailScoreStrip,
   .mailModalActions {
     grid-template-columns: 1fr;
   }

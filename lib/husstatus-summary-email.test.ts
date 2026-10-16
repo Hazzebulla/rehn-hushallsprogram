@@ -37,8 +37,13 @@ assert.equal(standard.subject, "Din Husstatus – Skillinge 694");
 assert.match(standard.bodyText, /Inga akuta brister identifierades/);
 assert.match(standard.bodyText, /Blandningsventil/);
 assert.match(standard.bodyText, /https:\/\/example\.se\/rapport\/rvm_public_token/);
+assert.match(standard.bodyHtml, /Din fastighetsöversikt/);
+assert.match(standard.bodyHtml, /83\/100/);
+assert.match(standard.bodyHtml, /Låg/);
+assert.equal(standard.summary.controlGrade, 96);
 assert.doesNotMatch(standard.bodyText, /reportId|\/admin\//);
 assert.doesNotMatch(standard.bodyText, /Anna Andersson/);
+assert.doesNotMatch(standard.bodyHtml, /reportId|\/admin\//);
 
 const unpublished = buildHusstatusSummaryEmail({
   ...baseInput,

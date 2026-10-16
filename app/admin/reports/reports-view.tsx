@@ -78,6 +78,17 @@ type SummaryMailPreview = {
   } | null;
   pdfAvailable: boolean;
   pdfUrl: string;
+  summary: {
+    healthScore: number | null;
+    healthLabel: string;
+    riskLevel: string;
+    riskIndex: number | null;
+    controlGrade: number | null;
+    urgent: number;
+    recommended: number;
+    watch: number;
+    passed: number;
+  };
 };
 
 function statusClass(status: string) {
@@ -103,6 +114,7 @@ export default function ReportsView({
   const [mailTemplate, setMailTemplate] = useState<MailTemplateVariant>("standard");
   const [mailIncludeReportLink, setMailIncludeReportLink] = useState(true);
   const [mailAttachPdf, setMailAttachPdf] = useState(false);
+  const [mailEditorOpen, setMailEditorOpen] = useState(false);
   const [mailLoading, setMailLoading] = useState(false);
   const [mailSending, setMailSending] = useState(false);
   const [mailMessage, setMailMessage] = useState("");
@@ -149,6 +161,7 @@ export default function ReportsView({
       setMailPreview(preview);
       setMailIncludeReportLink(preview.reportPublished);
       setMailAttachPdf(false);
+      setMailEditorOpen(false);
     } catch (error) {
       setMailPreview(null);
       setMailMessage(error instanceof Error ? error.message : "Mailet kunde inte förberedas.");
@@ -164,6 +177,12 @@ export default function ReportsView({
 
   function updateMailPreview(patch: Partial<Pick<SummaryMailPreview, "recipient" | "subject" | "bodyText">>) {
     setMailPreview((current) => current ? { ...current, ...patch } : current);
+  }
+
+  function openInMailClient() {
+    if (!mailPreview) return;
+    const href = `mailto:${encodeURIComponent(mailPreview.recipient)}?subject=${encodeURIComponent(mailPreview.subject)}&body=${encodeURIComponent(mailPreview.bodyText)}`;
+    window.location.href = href;
   }
 
   async function submitMail(action: "draft" | "send" | "publish") {
@@ -362,6 +381,40 @@ export default function ReportsView({
                   </label>
                 </div>
 
+                <section className="mailVisualPreview" aria-label="Förhandsvisning av kundmail">
+                  <header>
+                    <p>RVM HUSSTATUS</p>
+                    <h4>Din fastighetsöversikt</h4>
+                    <span>{mailPreview.propertyLabel}</span>
+                  </header>
+                  <div className="mailVisualBody">
+                    <div className="mailScoreStrip">
+                      <div>
+                        <span>Husstatus</span>
+                        <strong>{mailPreview.summary.healthScore ?? "–"}{mailPreview.summary.healthScore === null ? "" : "/100"}</strong>
+                        <small>{mailPreview.summary.healthLabel}</small>
+                      </div>
+                      <div>
+                        <span>Risknivå</span>
+                        <strong>{mailPreview.summary.riskLevel}</strong>
+                        <small>{mailPreview.summary.riskIndex === null ? "Ej beräknad" : `${mailPreview.summary.riskIndex} % riskindex`}</small>
+                      </div>
+                      <div>
+                        <span>Kontrollgrad</span>
+                        <strong>{mailPreview.summary.controlGrade === null ? "–" : `${mailPreview.summary.controlGrade} %`}</strong>
+                        <small>Verifierat underlag</small>
+                      </div>
+                    </div>
+                    <p className="mailPreviewText">{mailPreview.bodyText}</p>
+                    {mailIncludeReportLink && mailPreview.reportPublished ? <span className="mailPreviewCta">Öppna din fullständiga Husstatus</span> : null}
+                    <footer><strong>Rehn VVS &amp; Montage</strong><span>Svara på mailet om du har frågor.</span></footer>
+                  </div>
+                </section>
+
+                <button className="mailEditToggle" onClick={() => setMailEditorOpen((open) => !open)} type="button">
+                  {mailEditorOpen ? "Dölj textredigering" : "Redigera mailtext"}
+                </button>
+
                 {!mailPreview.reportPublished ? (
                   <div className="mailWarning mailWarningSplit">
                     <span>Rapporten är inte publicerad ännu. Skicka utan rapportlänk eller publicera rapporten först.</span>
@@ -384,10 +437,12 @@ export default function ReportsView({
                   <span>Bifoga fullständig rapport som PDF</span>
                 </label>
 
-                <label className="mailBodyField">
-                  <span>Kundsammanfattning</span>
-                  <textarea value={mailPreview.bodyText} onChange={(event) => updateMailPreview({ bodyText: event.target.value })} />
-                </label>
+                {mailEditorOpen ? (
+                  <label className="mailBodyField">
+                    <span>Kundsammanfattning</span>
+                    <textarea value={mailPreview.bodyText} onChange={(event) => updateMailPreview({ bodyText: event.target.value })} />
+                  </label>
+                ) : null}
 
                 {mailPreview.latestMail ? (
                   <div className="mailHistoryMini">
@@ -401,7 +456,8 @@ export default function ReportsView({
                   <button className="buttonLink" disabled={mailSending} onClick={() => submitMail("draft")} type="button">
                     {mailSending ? "Sparar..." : "Spara utkast"}
                   </button>
-                  <button className="primaryButton" disabled={mailSending} onClick={() => submitMail("send")} type="button">
+                  {!mailPreview.providerConfigured ? <button className="buttonLink" onClick={openInMailClient} type="button">Öppna i e-postprogram</button> : null}
+                  <button className="primaryButton" disabled={mailSending || !mailPreview.providerConfigured} onClick={() => submitMail("send")} type="button">
                     {mailSending ? "Skickar..." : "Skicka mail"}
                   </button>
                 </div>

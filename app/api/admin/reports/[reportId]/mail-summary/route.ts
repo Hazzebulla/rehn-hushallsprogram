@@ -26,8 +26,7 @@ function accessDenied(message: string, status = 403) {
 function appOrigin(request: NextRequest) {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
   if (configured) return configured;
-  const vercel = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
-  return vercel || request.nextUrl.origin;
+  return request.nextUrl.origin;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -262,6 +261,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     bodyText,
     propertyLabel: report.property.propertyNo || report.property.address,
     reportUrl: generated.reportUrl,
+    summary: generated.summary,
   });
 
   if (!isValidEmail(recipient)) {

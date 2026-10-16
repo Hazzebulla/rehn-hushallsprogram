@@ -49,6 +49,19 @@ export type SummaryEmailDraft = {
   reportVersion?: number | null;
   template: MailTemplateVariant;
   providerConfigured: boolean;
+  summary: SummaryEmailSnapshot;
+};
+
+export type SummaryEmailSnapshot = {
+  healthScore: number | null;
+  healthLabel: string;
+  riskLevel: string;
+  riskIndex: number | null;
+  controlGrade: number | null;
+  urgent: number;
+  recommended: number;
+  watch: number;
+  passed: number;
 };
 
 function statusLabel(score?: number | null) {
@@ -79,11 +92,26 @@ function paragraphs(bodyText: string) {
     .join("");
 }
 
-export function renderHusstatusSummaryEmailHtml(args: { bodyText: string; propertyLabel: string; reportUrl?: string }) {
+export function renderHusstatusSummaryEmailHtml(args: {
+  bodyText: string;
+  propertyLabel: string;
+  reportUrl?: string;
+  summary?: SummaryEmailSnapshot;
+}) {
   const button = args.reportUrl
-    ? `<a href="${escapeHtml(args.reportUrl)}" style="display:inline-block;background:#48d6e6;color:#031012;text-decoration:none;font-weight:800;padding:12px 18px;border-radius:4px">Öppna fullständig Husstatus</a>`
-    : `<strong style="color:#f0c445">Rapporten är inte publicerad ännu.</strong>`;
-  return `<!doctype html><html><body style="margin:0;background:#061012;color:#eaf5f3;font-family:Arial,sans-serif"><div style="max-width:640px;margin:0 auto;padding:28px 18px"><div style="border:1px solid #28505a;background:#102126;padding:20px"><strong style="color:#48d6e6;letter-spacing:.08em">RVM HUSSTATUS</strong><h1 style="margin:12px 0 4px;color:white;font-size:28px">Din Husstatus</h1><p style="color:#9fbcbc;margin:0">${escapeHtml(args.propertyLabel)}</p></div><div style="border:1px solid #28505a;border-top:0;background:#081618;padding:20px;line-height:1.55">${paragraphs(args.bodyText)}<p>${button}</p><p style="color:#9fbcbc;font-size:12px">Rehn VVS & Montage</p></div></div></body></html>`;
+    ? `<a href="${escapeHtml(args.reportUrl)}" style="display:inline-block;background:#58c8d5;color:#031012;text-decoration:none;font-size:16px;font-weight:800;padding:14px 22px;border-radius:4px">Öppna din fullständiga Husstatus</a>`
+    : `<strong style="color:#8a6200">Rapporten är inte publicerad ännu.</strong>`;
+  const summary = args.summary;
+  const metrics = summary ? `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 22px">
+      <tr>
+        <td width="33.33%" valign="top" style="padding:0 5px 0 0"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Husstatus</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${summary.healthScore ?? "–"}${summary.healthScore === null ? "" : "/100"}</strong><span style="color:#527073;font-size:12px">${escapeHtml(summary.healthLabel)}</span></div></td>
+        <td width="33.33%" valign="top" style="padding:0 3px"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Risknivå</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${escapeHtml(summary.riskLevel)}</strong><span style="color:#527073;font-size:12px">${summary.riskIndex === null ? "Ej beräknad" : `${summary.riskIndex} % riskindex`}</span></div></td>
+        <td width="33.33%" valign="top" style="padding:0 0 0 5px"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Kontrollgrad</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${summary.controlGrade === null ? "–" : `${summary.controlGrade} %`}</strong><span style="color:#527073;font-size:12px">Verifierat underlag</span></div></td>
+      </tr>
+    </table>` : "";
+
+  return `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#edf3f2;color:#183335;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#edf3f2"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:680px;border-collapse:collapse;background:#ffffff;border:1px solid #c8dcdd"><tr><td style="background:#061617;border-bottom:4px solid #58c8d5;padding:26px 28px"><strong style="color:#58c8d5;font-size:15px;letter-spacing:1.2px">RVM HUSSTATUS</strong><h1 style="margin:12px 0 5px;color:#ffffff;font-size:30px;line-height:1.1">Din fastighetsöversikt</h1><p style="color:#a9c5c5;margin:0;font-size:15px">${escapeHtml(args.propertyLabel)}</p></td></tr><tr><td style="padding:26px 28px;line-height:1.6">${metrics}<div style="font-size:15px;color:#183335">${paragraphs(args.bodyText)}</div><div style="margin:26px 0 12px">${button}</div><div style="border-top:1px solid #d5e4e5;margin-top:28px;padding-top:18px;color:#527073;font-size:12px;line-height:1.5"><strong style="color:#183335">Rehn VVS &amp; Montage</strong><br>Detta utskick hör till den Husstatus som genomförts på fastigheten. Svara på mailet om du har frågor.</div></td></tr></table></td></tr></table></body></html>`;
 }
 
 function actionLines(input: SummaryEmailInput, limit: number) {
@@ -151,7 +179,23 @@ export function buildHusstatusSummaryEmail(
 
   const bodyText = lines.join("\n\n");
   const subject = `Din Husstatus – ${input.propertyLabel}`;
-  const bodyHtml = renderHusstatusSummaryEmailHtml({ bodyText, propertyLabel: input.propertyLabel, reportUrl: input.reportUrl });
+  const summary: SummaryEmailSnapshot = {
+    healthScore: input.healthScore ?? null,
+    healthLabel: statusLabel(input.healthScore),
+    riskLevel: input.riskLevel || "Ej bedömd",
+    riskIndex: input.riskIndex ?? null,
+    controlGrade: input.controlGrade ?? null,
+    urgent: counts.urgent ?? 0,
+    recommended: counts.recommended ?? 0,
+    watch: counts.watch ?? 0,
+    passed: counts.passed ?? 0,
+  };
+  const bodyHtml = renderHusstatusSummaryEmailHtml({
+    bodyText,
+    propertyLabel: input.propertyLabel,
+    reportUrl: input.reportUrl,
+    summary,
+  });
 
   return {
     recipient: input.recipient,
@@ -163,5 +207,6 @@ export function buildHusstatusSummaryEmail(
     reportVersion: input.reportVersion,
     template,
     providerConfigured: Boolean(process.env.RESEND_API_KEY),
+    summary,
   };
 }
