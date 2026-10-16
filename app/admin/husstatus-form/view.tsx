@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type PointerEvent } from "react";
 import { autosaveHusstatusDraftAction, completeHusstatusFormAction } from "./actions";
 import { parseComponentInput } from "../../../lib/component-input-parser";
+import { enforceReportTargetIdentity, reportTargetIdentityAnswers, type ReportTargetProperty } from "../../../lib/report-target-identity";
 import {
   buildImageChecklist,
   getImageChecklistStatus,
@@ -163,15 +164,24 @@ const fieldSuggestions: Record<string, string[]> = {
   location: ["Timrå", "Sundsvall", "Härnösand", "Bromma", "På plats hos kund"],
 };
 
+function propertyTarget(property: PropertyOption): ReportTargetProperty {
+  return {
+    address: property.address,
+    propertyNo: property.propertyNo || null,
+    buildYear: property.buildYear,
+    customer: {
+      name: property.customerName,
+      phone: property.customerPhone || null,
+      invoiceEmail: property.customerEmail || null,
+    },
+  };
+}
+
 function propertyAutofillAnswers(property: PropertyOption): Partial<Answers> {
-  const contact = [property.customerPhone, property.customerEmail].filter(Boolean).join(" / ");
-  const propertyAddress = [property.address, property.propertyNo].filter(Boolean).join(" / ");
+  const identity = reportTargetIdentityAnswers(propertyTarget(property));
 
   return {
-    customer_name: property.customerName,
-    contact,
-    property_address: propertyAddress,
-    build_year: property.buildYear ? String(property.buildYear) : "",
+    ...identity,
     scope: "Full husstatus",
     customer_name__source: "Kundregister",
     contact__source: "Kundregister",
@@ -188,6 +198,18 @@ function mergeAutofillAnswers(current: Answers, autofill: Partial<Answers>) {
     }
   }
   return next;
+}
+
+function enforceSelectedPropertyIdentity(current: Answers, property: PropertyOption): Answers {
+  const autofill = propertyAutofillAnswers(property);
+  const merged = mergeAutofillAnswers(current, autofill);
+  return {
+    ...enforceReportTargetIdentity(merged, propertyTarget(property)),
+    customer_name__source: "Kundregister",
+    contact__source: "Kundregister",
+    property_address__source: "Fastighetsregister",
+    build_year__source: property.buildYear ? "Fastighetsregister" : "",
+  };
 }
 
 const emptyComponentRows: ComponentRegisterRow[] = Array.from({ length: 20 }, () => ({
@@ -1460,7 +1482,7 @@ export default function HusstatusFormView({
     persistedPhotoIdsRef.current = collectPhotoIds(initialAnswers);
     const loadedAnswers = lightenStoredPhotos(localAnswers ?? initialAnswers) as Answers;
     const nextAnswers = selectedProperty && !lockedReportId
-      ? mergeAutofillAnswers(loadedAnswers, propertyAutofillAnswers(selectedProperty))
+      ? enforceSelectedPropertyIdentity(loadedAnswers, selectedProperty)
       : loadedAnswers;
     const loadedPayload = JSON.stringify(loadedAnswers);
     const nextPayload = JSON.stringify(nextAnswers);
@@ -1640,10 +1662,9 @@ export default function HusstatusFormView({
       setMessage("Välj en fastighet först.");
       return;
     }
-    const autofill = propertyAutofillAnswers(selectedProperty);
-    setAnswers((current) => mergeAutofillAnswers(current, autofill));
+    setAnswers((current) => enforceSelectedPropertyIdentity(current, selectedProperty));
     setActiveSection(1);
-    setMessage("Kund- och fastighetsinfo är ifylld från registret utan att skriva över befintliga svar.");
+    setMessage("Kund- och fastighetsinfo är synkroniserad med vald fastighet. Tekniska svar och bilder är oförändrade.");
   }
 
   function addFieldPhotos(key: string, photos: PhotoAttachment[]) {
