@@ -6705,6 +6705,13 @@ td {
   cursor: pointer;
 }
 
+.photoActionButtons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .photoActions input {
   position: absolute;
   width: 1px;

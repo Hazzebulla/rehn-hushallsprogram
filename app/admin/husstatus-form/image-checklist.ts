@@ -294,8 +294,10 @@ export function getImageChecklistStatus(statuses: ImageChecklistStatusMap, itemI
   return statuses[itemId] ?? "MISSING";
 }
 
-export function isImageChecklistItemComplete(status: ImageChecklistStatus, imageCount: number, imageType: ImageType) {
-  if (status === "DONE") return imageCount > 0;
+export function isImageChecklistItemComplete(status: ImageChecklistStatus, _imageCount: number, imageType: ImageType) {
+  // DONE explicitly confirms that a usable image exists. It can already be
+  // attached to the original form question instead of this generated item.
+  if (status === "DONE") return true;
   if (imageType === "NAMEPLATE") {
     return status === "NO_VISIBLE_NAMEPLATE" || status === "NOT_ACCESSIBLE" || status === "NOT_APPLICABLE";
   }

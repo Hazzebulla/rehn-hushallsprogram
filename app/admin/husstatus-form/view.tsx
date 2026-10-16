@@ -595,16 +595,40 @@ function PhotoUploader({
     <div className={`photoUploader ${compact ? "compact" : ""}`}>
       <div className="photoActions">
         <span>Bilder</span>
-        <label>
-          {actionLabel}
-          <input
-            accept="image/*"
-            capture={captureCamera ? "environment" : undefined}
-            multiple={!captureCamera}
-            onChange={(event) => handleFiles(event.target.files)}
-            type="file"
-          />
-        </label>
+        <div className="photoActionButtons">
+          {captureCamera ? (
+            <>
+              <label>
+                Ta foto
+                <input
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(event) => handleFiles(event.target.files)}
+                  type="file"
+                />
+              </label>
+              <label>
+                Välj bild
+                <input
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => handleFiles(event.target.files)}
+                  type="file"
+                />
+              </label>
+            </>
+          ) : (
+            <label>
+              {actionLabel}
+              <input
+                accept="image/*"
+                multiple
+                onChange={(event) => handleFiles(event.target.files)}
+                type="file"
+              />
+            </label>
+          )}
+        </div>
       </div>
       {photos.length > 0 && (
         <div className="photoPreviewGrid">
@@ -1129,7 +1153,7 @@ function ComponentRegisterTable({
 
 function statusLabel(status: ImageChecklistStatus, imageCount: number, item: ImageChecklistItem) {
   if (isImageChecklistItemComplete(status, imageCount, item.imageType)) {
-    if (status === "DONE") return "Klar";
+    if (status === "DONE") return imageCount > 0 ? "Bild uppladdad" : "Bild finns";
     if (status === "NO_VISIBLE_NAMEPLATE") return "Ingen synlig typskylt";
     if (status === "NOT_ACCESSIBLE") return "Ej åtkomlig";
     if (status === "NOT_APPLICABLE") return "Ej tillämpligt";
@@ -1198,7 +1222,7 @@ function ImageChecklistPanel({
                 Status
                 <select value={status} onChange={(event) => onStatusChange(item.id, event.target.value as ImageChecklistStatus)}>
                   <option value="MISSING">Saknas</option>
-                  <option value="DONE">Bild tagen</option>
+                  <option value="DONE">Bild finns</option>
                   {item.imageType === "NAMEPLATE" ? <option value="NO_VISIBLE_NAMEPLATE">Ingen synlig typskylt</option> : null}
                   <option value="NOT_ACCESSIBLE">Ej åtkomlig</option>
                   <option value="NOT_APPLICABLE">Ej tillämpligt</option>
