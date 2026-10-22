@@ -8,6 +8,11 @@ import {
   type MailTemplateVariant,
 } from "../../../../../../lib/husstatus-summary-email";
 import { createPublicReportToken, isPublishedReportStatus, publicReportUrl } from "../../../../../../lib/public-report-access";
+import {
+  getMailProviderState,
+  resendReplyToAddress,
+  resendSenderAddress,
+} from "../../../../../../lib/resend-provider";
 
 const COMPANY_ID = "org_rehn_vvs";
 
@@ -116,8 +121,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const template = templateFrom(request.nextUrl.searchParams.get("template"));
   const draft = buildDraft(request, report, template);
+  const provider = await getMailProviderState();
   return NextResponse.json({
     ...draft,
+    providerConfigured: provider.ready,
+    providerMessage: provider.message,
     customerName: report.property.customer.name,
     propertyLabel: report.property.propertyNo || report.property.address,
     reportStatus: report.status,
@@ -184,8 +192,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
     const draft = buildDraft(request, published, template, true);
+    const provider = await getMailProviderState();
     return NextResponse.json({
       ...draft,
+      providerConfigured: provider.ready,
+      providerMessage: provider.message,
       customerName: published.property.customer.name,
       propertyLabel: published.property.propertyNo || published.property.address,
       reportStatus: published.status,
@@ -232,8 +243,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
     const draft = buildDraft(request, updated, template, true);
+    const provider = await getMailProviderState();
     return NextResponse.json({
       ...draft,
+      providerConfigured: provider.ready,
+      providerMessage: provider.message,
       customerName: updated.property.customer.name,
       propertyLabel: updated.property.propertyNo || updated.property.address,
       reportStatus: updated.status,
@@ -291,7 +305,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ ok: true, status: log.status, message: "Utkast sparat i mailhistoriken." });
   }
 
-  if (!process.env.RESEND_API_KEY) {
+  const provider = await getMailProviderState();
+  if (!provider.ready) {
     const log = await prisma.customerMailLog.create({
       data: {
         companyId: COMPANY_ID,
@@ -304,14 +319,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
         bodyHtml,
         template,
         reportVersion: report.reportVersion,
-        status: "PROVIDER_MISSING",
+        status: provider.configured ? "PROVIDER_NOT_READY" : "PROVIDER_MISSING",
         sentBy: session.email,
       },
     });
     return NextResponse.json({
       ok: false,
       status: log.status,
-      message: "Mailprovider saknas. Lägg in RESEND_API_KEY i Vercel för att kunna skicka riktiga mail.",
+      message: provider.message,
     }, { status: 503 });
   }
 
@@ -346,7 +361,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       "Idempotency-Key": `husstatus-summary-${messageKey([report.id, String(report.reportVersion), recipient, subject, bodyText])}`,
     },
     body: JSON.stringify({
-      from: process.env.RESEND_FROM_EMAIL || "Rehn VVS <onboarding@resend.dev>",
+      from: resendSenderAddress(),
+      reply_to: resendReplyToAddress(),
       to: [recipient],
       subject,
       html: bodyHtml,
@@ -354,7 +370,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       attachments,
     }),
   });
-  const resendPayload = await resendResponse.json().catch(() => ({})) as { id?: string; message?: string };
+  const resendPayload = await resendResponse.json().catch(() => ({})) as { id?: string; message?: string; name?: string };
   const sent = resendResponse.ok;
   const log = await prisma.customerMailLog.create({
     data: {
@@ -377,7 +393,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
   });
 
   if (!sent) {
-    return NextResponse.json({ ok: false, status: log.status, message: resendPayload.message ?? "Mailet kunde inte skickas." }, { status: 502 });
+    const providerMessage = resendPayload.message
+      ? `${resendPayload.name ? `${resendPayload.name}: ` : ""}${resendPayload.message}`
+      : "Mailet kunde inte skickas.";
+    return NextResponse.json({ ok: false, status: log.status, message: providerMessage }, { status: 502 });
   }
 
   return NextResponse.json({ ok: true, status: log.status, message: "Sammanfattningen är skickad.", providerId: log.providerId });

@@ -49,6 +49,7 @@ export type SummaryEmailDraft = {
   reportVersion?: number | null;
   template: MailTemplateVariant;
   providerConfigured: boolean;
+  providerMessage?: string;
   summary: SummaryEmailSnapshot;
 };
 
@@ -92,26 +93,37 @@ function paragraphs(bodyText: string) {
     .join("");
 }
 
+function bodyWithoutStandaloneReportUrl(bodyText: string, reportUrl?: string) {
+  if (!reportUrl) return bodyText;
+  return bodyText
+    .split("\n")
+    .filter((line) => line.trim() !== reportUrl)
+    .join("\n");
+}
+
 export function renderHusstatusSummaryEmailHtml(args: {
   bodyText: string;
   propertyLabel: string;
   reportUrl?: string;
   summary?: SummaryEmailSnapshot;
 }) {
+  const visibleBodyText = bodyWithoutStandaloneReportUrl(args.bodyText, args.reportUrl);
+  const title = `Din Husstatus - ${args.propertyLabel}`;
+  const preheader = `Din fastighetsöversikt för ${args.propertyLabel} från Rehn VVS & Montage.`;
   const button = args.reportUrl
-    ? `<a href="${escapeHtml(args.reportUrl)}" style="display:inline-block;background:#58c8d5;color:#031012;text-decoration:none;font-size:16px;font-weight:800;padding:14px 22px;border-radius:4px">Öppna din fullständiga Husstatus</a>`
+    ? `<a class="report-button" href="${escapeHtml(args.reportUrl)}" style="display:inline-block;background:#58c8d5;color:#031012;text-decoration:none;font-size:16px;font-weight:800;line-height:20px;padding:15px 22px;border-radius:4px;text-align:center">Öppna din fullständiga Husstatus</a>`
     : `<strong style="color:#8a6200">Rapporten är inte publicerad ännu.</strong>`;
   const summary = args.summary;
   const metrics = summary ? `
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 22px">
       <tr>
-        <td width="33.33%" valign="top" style="padding:0 5px 0 0"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Husstatus</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${summary.healthScore ?? "–"}${summary.healthScore === null ? "" : "/100"}</strong><span style="color:#527073;font-size:12px">${escapeHtml(summary.healthLabel)}</span></div></td>
-        <td width="33.33%" valign="top" style="padding:0 3px"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Risknivå</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${escapeHtml(summary.riskLevel)}</strong><span style="color:#527073;font-size:12px">${summary.riskIndex === null ? "Ej beräknad" : `${summary.riskIndex} % riskindex`}</span></div></td>
-        <td width="33.33%" valign="top" style="padding:0 0 0 5px"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Kontrollgrad</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${summary.controlGrade === null ? "–" : `${summary.controlGrade} %`}</strong><span style="color:#527073;font-size:12px">Verifierat underlag</span></div></td>
+        <td class="metric-cell" width="33.33%" valign="top" style="padding:0 5px 0 0"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Husstatus</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${summary.healthScore ?? "–"}${summary.healthScore === null ? "" : "/100"}</strong><span style="color:#527073;font-size:12px">${escapeHtml(summary.healthLabel)}</span></div></td>
+        <td class="metric-cell" width="33.33%" valign="top" style="padding:0 3px"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Risknivå</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${escapeHtml(summary.riskLevel)}</strong><span style="color:#527073;font-size:12px">${summary.riskIndex === null ? "Ej beräknad" : `${summary.riskIndex} % riskindex`}</span></div></td>
+        <td class="metric-cell" width="33.33%" valign="top" style="padding:0 0 0 5px"><div style="border:1px solid #d5e4e5;padding:14px;background:#f6faf9"><span style="display:block;color:#527073;font-size:11px;font-weight:700;text-transform:uppercase">Kontrollgrad</span><strong style="display:block;color:#082326;font-size:24px;margin-top:5px">${summary.controlGrade === null ? "–" : `${summary.controlGrade} %`}</strong><span style="color:#527073;font-size:12px">Verifierat underlag</span></div></td>
       </tr>
     </table>` : "";
 
-  return `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#edf3f2;color:#183335;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#edf3f2"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:680px;border-collapse:collapse;background:#ffffff;border:1px solid #c8dcdd"><tr><td style="background:#061617;border-bottom:4px solid #58c8d5;padding:26px 28px"><strong style="color:#58c8d5;font-size:15px;letter-spacing:1.2px">RVM HUSSTATUS</strong><h1 style="margin:12px 0 5px;color:#ffffff;font-size:30px;line-height:1.1">Din fastighetsöversikt</h1><p style="color:#a9c5c5;margin:0;font-size:15px">${escapeHtml(args.propertyLabel)}</p></td></tr><tr><td style="padding:26px 28px;line-height:1.6">${metrics}<div style="font-size:15px;color:#183335">${paragraphs(args.bodyText)}</div><div style="margin:26px 0 12px">${button}</div><div style="border-top:1px solid #d5e4e5;margin-top:28px;padding-top:18px;color:#527073;font-size:12px;line-height:1.5"><strong style="color:#183335">Rehn VVS &amp; Montage</strong><br>Detta utskick hör till den Husstatus som genomförts på fastigheten. Svara på mailet om du har frågor.</div></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html lang="sv" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>@media only screen and (max-width:600px){.email-shell{padding:12px 6px!important}.email-content,.email-header{padding:22px 18px!important}.metric-cell{display:block!important;width:100%!important;padding:0 0 8px!important}.report-button{display:block!important}}</style></head><body style="margin:0;background:#edf3f2;color:#183335;font-family:Arial,Helvetica,sans-serif"><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(preheader)}</div><table lang="sv" dir="ltr" role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#edf3f2"><tr><td class="email-shell" align="center" style="padding:28px 12px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:680px;border-collapse:collapse;background:#ffffff;border:1px solid #c8dcdd"><tr><td class="email-header" style="background:#061617;border-bottom:4px solid #58c8d5;padding:26px 28px"><strong style="color:#58c8d5;font-size:15px;letter-spacing:1.2px">RVM HUSSTATUS</strong><h1 style="margin:12px 0 5px;color:#ffffff;font-size:30px;line-height:1.1">Din fastighetsöversikt</h1><p style="color:#a9c5c5;margin:0;font-size:15px">${escapeHtml(args.propertyLabel)}</p></td></tr><tr><td class="email-content" style="padding:26px 28px;line-height:1.6">${metrics}<div style="font-size:15px;color:#183335">${paragraphs(visibleBodyText)}</div><div style="margin:26px 0 12px">${button}</div><div style="border-top:1px solid #d5e4e5;margin-top:28px;padding-top:18px;color:#527073;font-size:12px;line-height:1.5"><strong style="color:#183335">Rehn VVS &amp; Montage</strong><br>Detta utskick hör till den Husstatus som genomförts på fastigheten. Svara på mailet om du har frågor.</div></td></tr></table></td></tr></table></body></html>`;
 }
 
 function actionLines(input: SummaryEmailInput, limit: number) {
@@ -206,7 +218,7 @@ export function buildHusstatusSummaryEmail(
     reportPublished: input.reportPublished,
     reportVersion: input.reportVersion,
     template,
-    providerConfigured: Boolean(process.env.RESEND_API_KEY),
+    providerConfigured: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_EMAIL_DOMAIN),
     summary,
   };
 }

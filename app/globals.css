@@ -2306,6 +2306,15 @@ td {
   cursor: pointer;
 }
 
+.mailProviderReady {
+  margin: 0;
+  border: 1px solid rgba(94, 201, 138, 0.55);
+  background: rgba(94, 201, 138, 0.08);
+  color: #83daa7;
+  padding: 10px 12px;
+  font-weight: 850;
+}
+
 .mailOption {
   display: flex;
   gap: 9px;

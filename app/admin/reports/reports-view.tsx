@@ -64,6 +64,7 @@ type SummaryMailPreview = {
   reportVersion?: number | null;
   template: MailTemplateVariant;
   providerConfigured: boolean;
+  providerMessage?: string;
   customerName: string;
   propertyLabel: string;
   reportStatus: string;
@@ -425,7 +426,10 @@ export default function ReportsView({
                   <p className="mailWarning">Rapporten har ändrats sedan senaste kundutskicket.</p>
                 ) : null}
                 {!mailPreview.providerConfigured ? (
-                  <p className="mailWarning">RESEND_API_KEY saknas. Utkast kan sparas, men riktiga mail skickas först när mailprovider är konfigurerad.</p>
+                  <p className="mailWarning">{mailPreview.providerMessage || "Mailtjänsten är inte redo. Utkast kan sparas under tiden."}</p>
+                ) : null}
+                {mailPreview.providerConfigured && mailPreview.providerMessage ? (
+                  <p className="mailProviderReady">{mailPreview.providerMessage} Svar går till info@rehnvvsmontage.se.</p>
                 ) : null}
 
                 <label className="mailOption">

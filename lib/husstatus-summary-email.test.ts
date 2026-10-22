@@ -40,6 +40,11 @@ assert.match(standard.bodyText, /https:\/\/example\.se\/rapport\/rvm_public_toke
 assert.match(standard.bodyHtml, /Din fastighetsöversikt/);
 assert.match(standard.bodyHtml, /83\/100/);
 assert.match(standard.bodyHtml, /Låg/);
+assert.match(standard.bodyHtml, /<html lang="sv" dir="ltr">/);
+assert.match(standard.bodyHtml, /<title>Din Husstatus - Skillinge 694<\/title>/);
+assert.match(standard.bodyHtml, /role="presentation"/);
+assert.match(standard.bodyHtml, /class="report-button"/);
+assert.equal((standard.bodyHtml.match(/https:\/\/example\.se\/rapport\/rvm_public_token/g) ?? []).length, 1);
 assert.equal(standard.summary.controlGrade, 96);
 assert.doesNotMatch(standard.bodyText, /reportId|\/admin\//);
 assert.doesNotMatch(standard.bodyText, /Anna Andersson/);
