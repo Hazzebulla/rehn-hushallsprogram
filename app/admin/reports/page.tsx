@@ -27,7 +27,6 @@ async function getReports(status?: string) {
           include: {
             submissions: {
               orderBy: { updatedAt: "desc" },
-              take: 1,
             },
           },
         },
@@ -38,12 +37,14 @@ async function getReports(status?: string) {
 
     const rows = properties.flatMap((property): AdminReportVm[] => {
       const explanation = property.healthScore?.explanation as { risk?: number; nextAction?: string } | undefined;
-      const latestSubmission = property.inspections
+      const submissions = property.inspections
         .flatMap((inspection) => inspection.submissions)
-        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())[0];
+        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+      const latestSubmission = submissions[0];
+      const completedSubmission = submissions.find((submission) => submission.status === "SUBMITTED");
 
       if (!property.houseReports.length) {
-        const normalizedStatus: HouseReportStatus = latestSubmission?.status === "SUBMITTED"
+        const normalizedStatus: HouseReportStatus = completedSubmission
           ? "customer_form_completed"
           : "customer_form_started";
         const updatedAt = latestSubmission?.updatedAt ?? property.updatedAt;
@@ -56,7 +57,7 @@ async function getReports(status?: string) {
           status: normalizedStatus,
           normalizedStatus,
           risk: explanation?.risk ?? null,
-          nextAction: latestSubmission?.status === "SUBMITTED" ? "Skapa Husrapport" : "Fortsätt formuläret",
+          nextAction: completedSubmission ? "Skapa Husrapport" : "Fortsätt formuläret",
           updatedAt: updatedAt.toLocaleDateString("sv-SE"),
           updatedAtValue: updatedAt.getTime(),
           publishedAt: "",
