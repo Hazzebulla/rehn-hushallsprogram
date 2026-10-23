@@ -15,16 +15,20 @@ async function getReports(status?: string) {
   const selectedStatus = status && houseReportStatuses.includes(status as HouseReportStatus) ? status : "";
 
   try {
-    const reports = await prisma.houseReport.findMany({
-      where: {
-        companyId,
-        ...(selectedStatus ? { status: selectedStatus } : {}),
-      },
+    const properties = await prisma.property.findMany({
+      where: { companyId },
       include: {
-        property: {
+        customer: true,
+        healthScore: true,
+        houseReports: {
+          orderBy: { updatedAt: "desc" },
+        },
+        inspections: {
           include: {
-            customer: true,
-            healthScore: true,
+            submissions: {
+              orderBy: { updatedAt: "desc" },
+              take: 1,
+            },
           },
         },
       },
@@ -32,25 +36,59 @@ async function getReports(status?: string) {
       take: 80,
     });
 
+    const rows = properties.flatMap((property): AdminReportVm[] => {
+      const explanation = property.healthScore?.explanation as { risk?: number; nextAction?: string } | undefined;
+      const latestSubmission = property.inspections
+        .flatMap((inspection) => inspection.submissions)
+        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())[0];
+
+      if (!property.houseReports.length) {
+        const normalizedStatus: HouseReportStatus = latestSubmission?.status === "SUBMITTED"
+          ? "customer_form_completed"
+          : "customer_form_started";
+        const updatedAt = latestSubmission?.updatedAt ?? property.updatedAt;
+        return [{
+          id: `property-${property.id}`,
+          propertyId: property.id,
+          hasReport: false,
+          customer: property.customer.name,
+          address: property.address,
+          status: normalizedStatus,
+          normalizedStatus,
+          risk: explanation?.risk ?? null,
+          nextAction: latestSubmission?.status === "SUBMITTED" ? "Skapa Husrapport" : "Fortsätt formuläret",
+          updatedAt: updatedAt.toLocaleDateString("sv-SE"),
+          updatedAtValue: updatedAt.getTime(),
+          publishedAt: "",
+          publicAccessEnabled: false,
+          publicAccessToken: "",
+        }];
+      }
+
+      return property.houseReports.map((report): AdminReportVm => ({
+        id: report.id,
+        propertyId: property.id,
+        hasReport: true,
+        customer: property.customer.name,
+        address: property.address,
+        status: report.status,
+        normalizedStatus: normalizeHouseReportStatus(report.status),
+        risk: explanation?.risk ?? null,
+        nextAction: explanation?.nextAction ?? "Nästa kontroll saknas",
+        updatedAt: report.updatedAt.toLocaleDateString("sv-SE"),
+        updatedAtValue: report.updatedAt.getTime(),
+        publishedAt: report.publishedAt?.toLocaleDateString("sv-SE") ?? "",
+        publicAccessEnabled: report.publicAccessEnabled,
+        publicAccessToken: report.publicAccessToken ?? "",
+      }));
+    })
+      .filter((row) => !selectedStatus || row.normalizedStatus === selectedStatus)
+      .sort((left, right) => right.updatedAtValue - left.updatedAtValue)
+      .slice(0, 80);
+
     return {
       databaseOnline: true,
-      reports: reports.map((report): AdminReportVm => {
-        const explanation = report.property.healthScore?.explanation as { risk?: number; nextAction?: string } | undefined;
-        return {
-          id: report.id,
-          propertyId: report.propertyId,
-          customer: report.property.customer.name,
-          address: report.property.address,
-          status: report.status,
-          normalizedStatus: normalizeHouseReportStatus(report.status),
-          risk: explanation?.risk ?? null,
-          nextAction: explanation?.nextAction ?? "Nästa kontroll saknas",
-          updatedAt: report.updatedAt.toLocaleDateString("sv-SE"),
-          publishedAt: report.publishedAt?.toLocaleDateString("sv-SE") ?? "",
-          publicAccessEnabled: report.publicAccessEnabled,
-          publicAccessToken: report.publicAccessToken ?? "",
-        };
-      }),
+      reports: rows,
     };
   } catch {
     return { databaseOnline: false, reports: [] };
@@ -94,7 +132,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         <section className="portalPanel">
           <div className="panelTitle">
             <h3>Rapportlista</h3>
-            <span>{reports.length} rapporter</span>
+            <span>{reports.length} kunder / fastigheter</span>
           </div>
           <ReportsView reports={reports} />
         </section>

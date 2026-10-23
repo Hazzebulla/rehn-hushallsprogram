@@ -41,6 +41,7 @@ export type ReportAnswerDetails = {
 export type AdminReportVm = {
   id: string;
   propertyId: string;
+  hasReport: boolean;
   customer: string;
   address: string;
   status: string;
@@ -48,6 +49,7 @@ export type AdminReportVm = {
   risk: number | null;
   nextAction: string;
   updatedAt: string;
+  updatedAtValue: number;
   publishedAt: string;
   publicAccessEnabled: boolean;
   publicAccessToken: string;
@@ -295,29 +297,35 @@ export default function ReportsView({
                     </>
                   ) : (
                     <>
-                      <span>Kundsvar finns bakom knappen</span>
+                      <span>{report.hasReport ? "Kundsvar finns bakom knappen" : report.normalizedStatus === "customer_form_completed" ? "Formulär inskickat" : "Formulär påbörjat"}</span>
                       <span>{report.risk !== null ? `${report.risk} % risk` : "Risk ej bedömd"}</span>
                     </>
                   )}
                 </div>
                 <div className="reportAccessMeta">
-                  <span>{report.publicAccessEnabled ? "Kundåtkomst aktiv" : "Kundåtkomst stängd"}</span>
-                  <small>{report.publishedAt ? `Publicerad ${report.publishedAt}` : "Ej publicerad"}</small>
+                  <span>{report.hasReport ? (report.publicAccessEnabled ? "Kundåtkomst aktiv" : "Kundåtkomst stängd") : "Husrapport inte skapad"}</span>
+                  <small>{report.hasReport ? (report.publishedAt ? `Publicerad ${report.publishedAt}` : "Ej publicerad") : report.nextAction}</small>
                 </div>
                 <div className="reportActions">
-                  <a className="buttonLink" href={`/husrapport?reportId=${report.id}`}>Visa</a>
+                  {report.hasReport ? <a className="buttonLink" href={`/husrapport?reportId=${report.id}`}>Visa</a> : null}
                   {report.publicAccessEnabled && report.publicAccessToken ? <a className="buttonLink" href={`/rapport/${encodeURIComponent(report.publicAccessToken)}`} target="_blank">Öppna kundvy</a> : null}
                   {report.publicAccessEnabled && report.publicAccessToken ? <button className="buttonLink" onClick={() => copyPublicLink(report.publicAccessToken)} type="button">Kopiera kundlänk</button> : null}
-                  <a className="buttonLink" href={`/admin/inspection/${report.id}`}>Besiktning</a>
-                  <a className="buttonLink" href={`/admin/husstatus-form?reportId=${report.id}`}>Formulär</a>
-                  <button className="buttonLink" disabled={mailLoading && mailReportId === report.id} onClick={() => openMailPreview(report.id, "standard")} type="button">
-                    {mailLoading && mailReportId === report.id ? "Förbereder..." : "Maila sammanfattning"}
-                  </button>
-                  {report.publicAccessEnabled ? <button className="buttonLink" onClick={() => updatePublicAccess(report.id, "regenerate_link")} type="button">Ny kundlänk</button> : null}
-                  {report.publicAccessEnabled ? <button className="buttonLink danger" onClick={() => updatePublicAccess(report.id, "unpublish")} type="button">Avpublicera</button> : null}
-                  <button className="buttonLink" disabled={loadingReportId === report.id} onClick={() => toggleCustomerAnswers(report.id)} type="button">
-                    {isOpen ? "Dölj kundsvar" : loadingReportId === report.id ? "Hämtar..." : "Visa kundsvar"}
-                  </button>
+                  {report.hasReport ? <a className="buttonLink" href={`/admin/inspection/${report.id}`}>Besiktning</a> : null}
+                  <a className={report.hasReport ? "buttonLink" : "buttonLink primary"} href={report.hasReport ? `/admin/husstatus-form?reportId=${report.id}` : `/admin/husstatus-form?propertyId=${report.propertyId}`}>
+                    {report.hasReport ? "Formulär" : report.normalizedStatus === "customer_form_completed" ? "Skapa Husrapport" : "Fortsätt formulär"}
+                  </a>
+                  {report.hasReport ? (
+                    <button className="buttonLink" disabled={mailLoading && mailReportId === report.id} onClick={() => openMailPreview(report.id, "standard")} type="button">
+                      {mailLoading && mailReportId === report.id ? "Förbereder..." : "Maila sammanfattning"}
+                    </button>
+                  ) : null}
+                  {report.hasReport && report.publicAccessEnabled ? <button className="buttonLink" onClick={() => updatePublicAccess(report.id, "regenerate_link")} type="button">Ny kundlänk</button> : null}
+                  {report.hasReport && report.publicAccessEnabled ? <button className="buttonLink danger" onClick={() => updatePublicAccess(report.id, "unpublish")} type="button">Avpublicera</button> : null}
+                  {report.hasReport ? (
+                    <button className="buttonLink" disabled={loadingReportId === report.id} onClick={() => toggleCustomerAnswers(report.id)} type="button">
+                      {isOpen ? "Dölj kundsvar" : loadingReportId === report.id ? "Hämtar..." : "Visa kundsvar"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
