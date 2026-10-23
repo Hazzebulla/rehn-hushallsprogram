@@ -100,6 +100,14 @@ function statusClass(status: string) {
   return "draft";
 }
 
+function visualMailBody(preview: SummaryMailPreview) {
+  if (!preview.reportUrl) return preview.bodyText;
+  return preview.bodyText
+    .split("\n")
+    .filter((line) => line.trim() !== preview.reportUrl)
+    .join("\n");
+}
+
 export default function ReportsView({
   reports,
 }: {
@@ -406,7 +414,7 @@ export default function ReportsView({
                         <small>Verifierat underlag</small>
                       </div>
                     </div>
-                    <p className="mailPreviewText">{mailPreview.bodyText}</p>
+                    <p className="mailPreviewText">{visualMailBody(mailPreview)}</p>
                     {mailIncludeReportLink && mailPreview.reportPublished ? <span className="mailPreviewCta">Öppna din fullständiga Husstatus</span> : null}
                     <footer><strong>Rehn VVS &amp; Montage</strong><span>Svara på mailet om du har frågor.</span></footer>
                   </div>
