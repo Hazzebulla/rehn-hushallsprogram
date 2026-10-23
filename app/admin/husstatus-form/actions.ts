@@ -7,6 +7,7 @@ import { parseComponentInput } from "../../../lib/component-input-parser";
 import { calculateHusstatusScore } from "../../../lib/husstatus-scoring";
 import { normalizeHusstatus } from "../../../lib/husstatus-normalization";
 import { enforceReportTargetIdentity } from "../../../lib/report-target-identity";
+import { nextSequentialReportNo } from "../../../lib/report-number";
 import { buildImageChecklist, summarizeImageChecklist, type ImageChecklistStatusMap, type SectionStatusMap } from "./image-checklist";
 import { isRvmFieldVisible, rvmFieldCount, rvmSections } from "./spec";
 
@@ -320,10 +321,11 @@ async function resolveSubmissionTarget(propertyId: string, reportId?: string) {
 
 async function nextReportNo() {
   const year = new Date().getFullYear();
-  const count = await prisma.houseReport.count({
+  const reports = await prisma.houseReport.findMany({
     where: { companyId: COMPANY_ID, reportNo: { startsWith: `RVM-HS-${year}-` } },
+    select: { reportNo: true },
   });
-  return `RVM-HS-${year}-${String(count + 1).padStart(4, "0")}`;
+  return nextSequentialReportNo(year, reports.map((report) => report.reportNo));
 }
 
 function scoreFromStatus(status?: string) {
@@ -439,21 +441,61 @@ async function createComponentFromRow(propertyId: string, row: ComponentRegister
 async function createComponentsFromRegister(propertyId: string, register?: Answers[string]) {
   if (!register) return 0;
 
+  let rows: ComponentRegisterRow[];
   if (Array.isArray(register)) {
     if (!register.length || typeof register[0] !== "object") return 0;
-    let created = 0;
-    for (const row of (register as ComponentRegisterRow[]).slice(0, 20)) {
-      if (await createComponentFromRow(propertyId, row)) created += 1;
-    }
-    return created;
+    rows = (register as ComponentRegisterRow[]).slice(0, 20);
+  } else {
+    if (typeof register !== "string") return 0;
+    rows = parseComponentInput(register).slice(0, 30);
   }
 
-  if (typeof register !== "string") return 0;
+  const existing = await prisma.propertyComponent.findMany({
+    where: { companyId: COMPANY_ID, propertyId },
+    select: {
+      productModelId: true,
+      customManufacturer: true,
+      customModelName: true,
+      serialNumber: true,
+      installationYear: true,
+      condition: true,
+    },
+  });
+  const normalize = (value?: string | null) => (value ?? "").trim().toLocaleLowerCase("sv-SE");
+  const fingerprint = (row: {
+    productModelId?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    serialNo?: string | null;
+    installedYear?: string | number | null;
+    status?: string | null;
+  }) => [
+    row.productModelId ? `product:${row.productModelId}` : `custom:${normalize(row.brand)}:${normalize(row.model)}`,
+    normalize(row.serialNo),
+    String(row.installedYear ?? ""),
+    normalize(row.status),
+  ].join("|");
+  const existingCounts = new Map<string, number>();
+  for (const item of existing) {
+    const key = fingerprint({
+      productModelId: item.productModelId,
+      brand: item.customManufacturer,
+      model: item.customModelName,
+      serialNo: item.serialNumber,
+      installedYear: item.installationYear,
+      status: item.condition,
+    });
+    existingCounts.set(key, (existingCounts.get(key) ?? 0) + 1);
+  }
 
-  const rows = parseComponentInput(register).slice(0, 30);
   let created = 0;
-
   for (const row of rows) {
+    const key = fingerprint(row);
+    const matchingExisting = existingCounts.get(key) ?? 0;
+    if (matchingExisting > 0) {
+      existingCounts.set(key, matchingExisting - 1);
+      continue;
+    }
     if (await createComponentFromRow(propertyId, row)) created += 1;
   }
 
@@ -578,9 +620,6 @@ export async function completeHusstatusFormAction(formData: FormData) {
       create: { companyId: COMPANY_ID, propertyId: property.id, score: scoring.houseScore, explanation: healthExplanation },
     });
 
-    const createdComponents = isSectionActive(answers, 19)
-      ? await createComponentsFromRegister(property.id, answers.component_register_rows ?? answers.component_register)
-      : 0;
     const report = target.report
       ? await prisma.houseReport.update({
           where: { id: target.report.id },
@@ -628,6 +667,22 @@ export async function completeHusstatusFormAction(formData: FormData) {
           },
         });
 
+    let createdComponents = 0;
+    if (isSectionActive(answers, 19)) {
+      try {
+        createdComponents = await createComponentsFromRegister(
+          property.id,
+          answers.component_register_rows ?? answers.component_register,
+        );
+      } catch (error) {
+        console.error("Component import failed after Husstatus report creation", {
+          propertyId: property.id,
+          reportId: report.id,
+          error,
+        });
+      }
+    }
+
     await prisma.auditLog.create({
       data: {
         companyId: COMPANY_ID,
@@ -650,7 +705,8 @@ export async function completeHusstatusFormAction(formData: FormData) {
       reportId: report.id,
       message: `Formuläret slutfördes. Rapport ${report.reportNo} skapades för granskning. ${entries.length} fält sparades och ${createdComponents} komponenter skapades.`,
     };
-  } catch {
+  } catch (error) {
+    console.error("completeHusstatusFormAction failed", { propertyId, reportId, error });
     return { ok: false, message: "Formuläret kunde inte sparas." };
   }
 }

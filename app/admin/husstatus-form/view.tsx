@@ -1757,7 +1757,10 @@ export default function HusstatusFormView({
     startTransition(async () => {
       const result = await completeHusstatusFormAction(formData);
       setMessage(result.message);
-      if (result.ok) window.localStorage.removeItem(storageKey);
+      if (result.ok && result.reportId) {
+        window.localStorage.removeItem(storageKey);
+        window.location.href = `/husrapport?reportId=${encodeURIComponent(result.reportId)}`;
+      }
     });
   }
 
