@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition, type PointerEvent } from "react";
+import { useRouter } from "next/navigation";
 import { autosaveHusstatusDraftAction, completeHusstatusFormAction } from "./actions";
 import { parseComponentInput } from "../../../lib/component-input-parser";
 import { enforceReportTargetIdentity, reportTargetIdentityAnswers, type ReportTargetProperty } from "../../../lib/report-target-identity";
@@ -1361,6 +1362,7 @@ export default function HusstatusFormView({
   initialAnswers?: Record<string, unknown>;
   initialStatus?: string;
 }) {
+  const router = useRouter();
   const [propertyId, setPropertyId] = useState(initialPropertyId || properties[0]?.id || "");
   const lockedReportId = initialReportId || "";
   const reportUrl = propertyId ? `/husrapport?propertyId=${propertyId}` : "/husrapport";
@@ -1376,6 +1378,7 @@ export default function HusstatusFormView({
   );
   const [reviewMode, setReviewMode] = useState<"NONE" | "WARNING" | "BLOCKED" | "READY">("NONE");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<"idle" | "saving" | "preview" | "complete">("idle");
   const [isPending, startTransition] = useTransition();
   const hydratedRef = useRef(false);
   const lastSavedPayloadRef = useRef("");
@@ -1412,6 +1415,11 @@ export default function HusstatusFormView({
       : answeredCount > 0
         ? `Fortsätt formulär - ${progress} % klart`
         : "Fyll i formulär";
+  const pendingMessage = pendingAction === "complete"
+    ? "Skapar husrapport och sparar alla uppgifter..."
+    : pendingAction === "preview"
+      ? "Sparar och öppnar förhandsgranskningen..."
+      : "Sparar formuläret...";
   const section = sections.find((item) => item.id === activeSection) ?? sections[0];
   const activeSectionStatus = sectionStatusFor(answers, section.id);
   const activeSectionIsNotApplicable = activeSectionStatus === "not_applicable";
@@ -1755,18 +1763,28 @@ export default function HusstatusFormView({
     formData.set("answers", JSON.stringify(photoPayloadForSave(answers, persistedPhotoIdsRef.current)));
 
     startTransition(async () => {
-      const result = await completeHusstatusFormAction(formData);
-      setMessage(result.message);
-      if (result.ok && result.reportId) {
-        window.localStorage.removeItem(storageKey);
-        window.location.href = `/husrapport?reportId=${encodeURIComponent(result.reportId)}`;
+      setPendingAction("complete");
+      try {
+        const result = await completeHusstatusFormAction(formData);
+        setMessage(result.message);
+        if (result.ok && result.reportId) {
+          window.localStorage.removeItem(storageKey);
+          router.push(`/husrapport?reportId=${encodeURIComponent(result.reportId)}`);
+        }
+      } finally {
+        setPendingAction("idle");
       }
     });
   }
 
   function saveNow() {
     startTransition(async () => {
-      await saveDraftNow();
+      setPendingAction("saving");
+      try {
+        await saveDraftNow();
+      } finally {
+        setPendingAction("idle");
+      }
     });
   }
 
@@ -1783,8 +1801,13 @@ export default function HusstatusFormView({
 
   function previewReport() {
     startTransition(async () => {
-      const saved = await saveDraftNow();
-      if (saved || answeredCount === 0) window.location.href = reportUrl;
+      setPendingAction("preview");
+      try {
+        const saved = await saveDraftNow();
+        if (saved || answeredCount === 0) window.location.href = reportUrl;
+      } finally {
+        setPendingAction("idle");
+      }
     });
   }
 
@@ -1798,8 +1821,8 @@ export default function HusstatusFormView({
             Formuläret skiljer kunduppgifter från RVM-mätningar, sparar originalsvaret som submission och
             fyller husrapportens grunddata deterministiskt.
           </p>
-          <div className={`persistenceNote ${databaseOnline ? "online" : "offline"}`}>
-            {isPending ? "Sparar..." : message}
+          <div aria-live="polite" className={`persistenceNote ${databaseOnline ? "online" : "offline"}`} role="status">
+            {isPending ? pendingMessage : message}
             {lastSavedAt && !isPending ? <small>Senast sparat kl {lastSavedAt}</small> : null}
             {lockedReportId ? <small>Rapport: {initialReportNo || lockedReportId} · Submission: {initialSubmissionId || "saknas"}</small> : null}
           </div>
@@ -1846,21 +1869,42 @@ export default function HusstatusFormView({
       </section>
 
       <section className="portalPanel formToolbar">
-        <label>
-          Fastighet
-          <select disabled={isPending || !!lockedReportId} value={propertyId} onChange={(event) => changeProperty(event.target.value)}>
-            {!propertyId ? <option value="">Rapportdata kunde inte laddas</option> : null}
-            {properties.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
-          </select>
-        </label>
-        <button type="button" onClick={() => setActiveSection(1)}>{formButtonLabel}</button>
-        <button disabled={!propertyId || !!lockedReportId} onClick={autofillCustomerInfo} type="button">Autofyll kundinfo</button>
-        <button disabled={isPending || saveableCount === 0} onClick={saveNow} type="button">Spara utkast</button>
-        <button disabled={isPending || saveableCount === 0} onClick={() => saveReview()} type="button">Spara genomgång</button>
-        <button disabled={isPending || !databaseOnline} onClick={previewReport} type="button">Förhandsgranska rapport</button>
-        <button disabled={!databaseOnline || isPending || !propertyId} onClick={complete}>
-          Slutför och skapa husrapport
-        </button>
+        <div className="formToolbarContext">
+          <label>
+            Fastighet
+            <select disabled={isPending || !!lockedReportId} value={propertyId} onChange={(event) => changeProperty(event.target.value)}>
+              {!propertyId ? <option value="">Rapportdata kunde inte laddas</option> : null}
+              {properties.map((property) => <option key={property.id} value={property.id}>{property.label}</option>)}
+            </select>
+          </label>
+          <div className="formToolbarProgress" aria-label={`Formuläret är ${progress} procent klart`}>
+            <span><b>{progress} %</b> formulär</span>
+            <span><b>{imageSummary.complete}/{imageSummary.total}</b> bildpunkter</span>
+            <i><span style={{ width: `${progress}%` }} /></i>
+          </div>
+        </div>
+        <div className="formToolbarActions">
+          <button className="toolbarQuiet" type="button" onClick={() => setActiveSection(1)}>{formButtonLabel}</button>
+          <button className="toolbarQuiet" disabled={!propertyId || !!lockedReportId} onClick={autofillCustomerInfo} type="button">Autofyll kundinfo</button>
+          <button className="toolbarQuiet" disabled={isPending || saveableCount === 0} onClick={saveNow} type="button">
+            {isPending && pendingAction === "saving" ? "Sparar..." : "Spara utkast"}
+          </button>
+          <button className="toolbarQuiet" disabled={isPending || saveableCount === 0} onClick={() => saveReview()} type="button">Spara genomgång</button>
+          <button className="toolbarQuiet" disabled={isPending || !databaseOnline} onClick={previewReport} type="button">
+            {isPending && pendingAction === "preview" ? "Öppnar..." : "Förhandsgranska"}
+          </button>
+          <button className="toolbarPrimary" disabled={!databaseOnline || isPending || !propertyId} onClick={complete} type="button">
+            {isPending && pendingAction === "complete"
+              ? "Skapar husrapport..."
+              : lockedReportId
+                ? "Spara och uppdatera rapport"
+                : "Slutför och skapa husrapport"}
+          </button>
+        </div>
+        <div aria-live="polite" className={`formToolbarMessage ${databaseOnline ? "online" : "offline"}`} role="status">
+          <span>{isPending ? pendingMessage : message}</span>
+          <small>{lastSavedAt && !isPending ? `Senast sparat kl ${lastSavedAt}` : databaseOnline ? "Databasen är ansluten" : "Databasen är offline"}</small>
+        </div>
       </section>
 
       {reviewMode !== "NONE" ? (

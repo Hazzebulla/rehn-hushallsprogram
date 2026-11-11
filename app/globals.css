@@ -6272,17 +6272,27 @@ td {
 }
 
 .formToolbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  align-items: end;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(560px, 1.6fr);
+  gap: 16px 24px;
+  align-items: start;
   margin-bottom: 18px;
+}
+
+.formToolbarContext,
+.formToolbarActions {
+  min-width: 0;
+}
+
+.formToolbarContext {
+  display: grid;
+  gap: 12px;
 }
 
 .formToolbar label {
   display: grid;
   gap: 7px;
-  width: min(520px, 100%);
+  width: 100%;
   color: var(--muted);
   font-size: 11px;
   font-weight: 900;
@@ -6291,7 +6301,7 @@ td {
 
 .formToolbar select,
 .formToolbar button {
-  min-height: 42px;
+  min-height: 44px;
   border: 1px solid var(--line);
   background: rgba(4, 12, 12, 0.72);
   color: white;
@@ -6301,10 +6311,80 @@ td {
 }
 
 .formToolbar button {
+  cursor: pointer;
+}
+
+.formToolbarActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+.formToolbar .toolbarQuiet {
+  border-color: var(--line);
+  background: rgba(4, 12, 12, 0.72);
+  color: #dce6e3;
+}
+
+.formToolbar .toolbarQuiet:hover:not(:disabled) {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.formToolbar .toolbarPrimary {
+  grid-column: span 2;
   border-color: var(--cyan);
   background: var(--cyan);
   color: #031012;
-  cursor: pointer;
+  font-weight: 950;
+}
+
+.formToolbarProgress {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.formToolbarProgress b {
+  color: white;
+}
+
+.formToolbarProgress i {
+  grid-column: 1 / -1;
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  background: #21343a;
+}
+
+.formToolbarProgress i span {
+  display: block;
+  height: 100%;
+  background: var(--cyan);
+  transition: width 180ms ease;
+}
+
+.formToolbarMessage {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: #dce6e3;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.formToolbarMessage.online small {
+  color: var(--ok);
+}
+
+.formToolbarMessage.offline,
+.formToolbarMessage.offline small {
+  color: var(--warn);
 }
 
 .formToolbar button:disabled {
@@ -7571,14 +7651,7 @@ td {
   }
 
   .formToolbar {
-    display: grid;
-    grid-template-columns: 1fr 160px 128px;
-    align-items: end;
-  }
-
-  .formToolbar label {
-    grid-column: 1 / -1;
-    width: 100%;
+    grid-template-columns: minmax(240px, 0.72fr) minmax(0, 1.28fr);
   }
 
   .formToolbar button {
@@ -7707,7 +7780,15 @@ td {
   }
 
   .formToolbar {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+  }
+
+  .formToolbarActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .formToolbar .toolbarPrimary {
+    grid-column: 1 / -1;
   }
 
   .imageLibraryGrid,
@@ -8482,6 +8563,24 @@ td {
 }
 
 @media (max-width: 760px) {
+  .formToolbar {
+    gap: 14px;
+  }
+
+  .formToolbarActions {
+    grid-template-columns: 1fr;
+  }
+
+  .formToolbar .toolbarPrimary {
+    grid-column: 1;
+    min-height: 50px;
+  }
+
+  .formToolbarMessage {
+    display: grid;
+    gap: 5px;
+  }
+
   .pricingFields,
   .pricingFields.two,
   .pricingInlineForm {
