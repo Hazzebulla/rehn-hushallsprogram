@@ -328,6 +328,28 @@ async function nextReportNo() {
   return nextSequentialReportNo(year, reports.map((report) => report.reportNo));
 }
 
+function isReportNumberCollision(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: string; meta?: { target?: unknown } };
+  return candidate.code === "P2002" && JSON.stringify(candidate.meta?.target ?? "").includes("reportNo");
+}
+
+async function createHouseReportWithNextNumber(
+  data: Omit<Prisma.HouseReportUncheckedCreateInput, "reportNo">,
+) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await prisma.houseReport.create({
+        data: { ...data, reportNo: await nextReportNo() },
+      });
+    } catch (error) {
+      if (!isReportNumberCollision(error) || attempt === 2) throw error;
+    }
+  }
+
+  throw new Error("Kunde inte reservera ett unikt rapportnummer.");
+}
+
 function scoreFromStatus(status?: string) {
   if (status === "God") return 86;
   if (status === "Normal") return 74;
@@ -642,12 +664,10 @@ export async function completeHusstatusFormAction(formData: FormData) {
             },
           },
         })
-      : await prisma.houseReport.create({
-          data: {
+      : await createHouseReportWithNextNumber({
             companyId: COMPANY_ID,
             propertyId: property.id,
             submissionId: submission.id,
-            reportNo: await nextReportNo(),
             status: "READY_FOR_REVIEW",
             formVersion: submission.version.version,
             reportVersion: 1,
@@ -664,7 +684,6 @@ export async function completeHusstatusFormAction(formData: FormData) {
               scoring: healthExplanation,
               source: "RVM Husstatus-formulär",
             },
-          },
         });
 
     let createdComponents = 0;
