@@ -235,29 +235,35 @@ function mergeStoredPhotoData(incoming: unknown, existing: unknown): unknown {
   return incoming;
 }
 
-async function replaceSubmissionAnswers(submissionId: string, entries: ReturnType<typeof filledEntries>) {
+async function replaceSubmissionAnswersWithClient(
+  tx: Prisma.TransactionClient,
+  submissionId: string,
+  entries: ReturnType<typeof filledEntries>,
+) {
   const fieldKeys = entries.map(([fieldKey]) => fieldKey);
-  await prisma.$transaction(async (tx) => {
-    const existingAnswers = fieldKeys.length
-      ? await tx.formAnswer.findMany({
-          where: { companyId: COMPANY_ID, submissionId, fieldKey: { in: fieldKeys } },
-        })
-      : [];
-    const existingByField = new Map(existingAnswers.map((answer) => [answer.fieldKey, storedAnswerValue(answer.value)]));
-    const mergedEntries = entries.map(([fieldKey, value]) => [fieldKey, mergeStoredPhotoData(value, existingByField.get(fieldKey))] as const);
+  const existingAnswers = fieldKeys.length
+    ? await tx.formAnswer.findMany({
+        where: { companyId: COMPANY_ID, submissionId, fieldKey: { in: fieldKeys } },
+      })
+    : [];
+  const existingByField = new Map(existingAnswers.map((answer) => [answer.fieldKey, storedAnswerValue(answer.value)]));
+  const mergedEntries = entries.map(([fieldKey, value]) => [fieldKey, mergeStoredPhotoData(value, existingByField.get(fieldKey))] as const);
 
-    await tx.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId } });
-    if (!mergedEntries.length) return;
+  await tx.formAnswer.deleteMany({ where: { companyId: COMPANY_ID, submissionId } });
+  if (!mergedEntries.length) return;
 
-    await tx.formAnswer.createMany({
-      data: mergedEntries.map(([fieldKey, value]) => ({
-        companyId: COMPANY_ID,
-        submissionId,
-        fieldKey,
-        value: (Array.isArray(value) ? { values: value } : { value }) as Prisma.InputJsonValue,
-      })),
-    });
+  await tx.formAnswer.createMany({
+    data: mergedEntries.map(([fieldKey, value]) => ({
+      companyId: COMPANY_ID,
+      submissionId,
+      fieldKey,
+      value: (Array.isArray(value) ? { values: value } : { value }) as Prisma.InputJsonValue,
+    })),
   });
+}
+
+async function replaceSubmissionAnswers(submissionId: string, entries: ReturnType<typeof filledEntries>) {
+  await prisma.$transaction((tx) => replaceSubmissionAnswersWithClient(tx, submissionId, entries));
 }
 
 async function findLatestEditableSubmission(propertyId: string) {
@@ -332,22 +338,6 @@ function isReportNumberCollision(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const candidate = error as { code?: string; meta?: { target?: unknown } };
   return candidate.code === "P2002" && JSON.stringify(candidate.meta?.target ?? "").includes("reportNo");
-}
-
-async function createHouseReportWithNextNumber(
-  data: Omit<Prisma.HouseReportUncheckedCreateInput, "reportNo">,
-) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      return await prisma.houseReport.create({
-        data: { ...data, reportNo: await nextReportNo() },
-      });
-    } catch (error) {
-      if (!isReportNumberCollision(error) || attempt === 2) throw error;
-    }
-  }
-
-  throw new Error("Kunde inte reservera ett unikt rapportnummer.");
 }
 
 function scoreFromStatus(status?: string) {
@@ -597,21 +587,6 @@ export async function completeHusstatusFormAction(formData: FormData) {
       };
     }
 
-    await replaceSubmissionAnswers(target.submission.id, entries);
-
-    if (target.submission.inspectionId) {
-      await prisma.inspection.update({
-        where: { id: target.submission.inspectionId },
-        data: { status: "COMPLETED", performedAt: new Date() },
-      });
-    }
-
-    const submission = await prisma.formSubmission.update({
-      where: { id: target.submission.id },
-      data: { status: "SUBMITTED", signedAt: new Date() },
-      include: { version: true },
-    });
-
     const scoringComponents = isSectionActive(answers, 19) && Array.isArray(answers.component_register_rows)
       ? answers.component_register_rows as ComponentRegisterRow[]
       : [];
@@ -626,7 +601,7 @@ export async function completeHusstatusFormAction(formData: FormData) {
       heating: validationAnswers.heat_source_type ?? validationAnswers.hot_water_type ?? "Ej angivet",
       nextAction: scoring.actions[0]?.action ?? answers.site_summary ?? answers.top_priority ?? "Rapporten behöver granskas",
       source: "rvm_husstatus_form",
-      submissionId: submission.id,
+      submissionId: target.submission.id,
       sufficientData: scoring.dataSufficient,
       counts: scoring.counts,
       categoryScores: scoring.categoryScores,
@@ -636,55 +611,85 @@ export async function completeHusstatusFormAction(formData: FormData) {
       summary: scoring.summary,
     };
 
-    await prisma.propertyHealthScore.upsert({
-      where: { propertyId: property.id },
-      update: { score: scoring.houseScore, explanation: healthExplanation },
-      create: { companyId: COMPANY_ID, propertyId: property.id, score: scoring.houseScore, explanation: healthExplanation },
-    });
+    let persisted: {
+      submission: { id: string; version: { version: number } };
+      report: { id: string; reportNo: string };
+    } | undefined;
 
-    const report = target.report
-      ? await prisma.houseReport.update({
-          where: { id: target.report.id },
-          data: {
-            status: "READY_FOR_REVIEW",
-            formVersion: submission.version.version,
-            performedAt: new Date(),
-            performedBy: typeof answers.rvm_signer === "string" ? answers.rvm_signer : null,
-            reportOwner: typeof answers.report_owner_deadline === "string" ? answers.report_owner_deadline : null,
-            nextControl: typeof answers.next_control === "string" ? answers.next_control : null,
-            summary: {
-              completedFields: entries.length,
-              activeFields: activeFieldCount(answers),
-              totalFields: rvmFieldCount,
-              sectionStatuses: sectionStatuses(answers),
-              scoringVersion: scoring.scoringVersion,
-              scoring: healthExplanation,
-              source: "RVM Husstatus-formulär",
-              updatedExistingReport: true,
-            },
-          },
-        })
-      : await createHouseReportWithNextNumber({
-            companyId: COMPANY_ID,
-            propertyId: property.id,
-            submissionId: submission.id,
-            status: "READY_FOR_REVIEW",
-            formVersion: submission.version.version,
-            reportVersion: 1,
-            performedAt: new Date(),
-            performedBy: typeof answers.rvm_signer === "string" ? answers.rvm_signer : null,
-            reportOwner: typeof answers.report_owner_deadline === "string" ? answers.report_owner_deadline : null,
-            nextControl: typeof answers.next_control === "string" ? answers.next_control : null,
-            summary: {
-              completedFields: entries.length,
-              activeFields: activeFieldCount(answers),
-              totalFields: rvmFieldCount,
-              sectionStatuses: sectionStatuses(answers),
-              scoringVersion: scoring.scoringVersion,
-              scoring: healthExplanation,
-              source: "RVM Husstatus-formulär",
-            },
+    for (let attempt = 0; attempt < 3 && !persisted; attempt += 1) {
+      const reportNo = target.report ? null : await nextReportNo();
+      try {
+        persisted = await prisma.$transaction(async (tx) => {
+          await replaceSubmissionAnswersWithClient(tx, target.submission.id, entries);
+
+          if (target.submission.inspectionId) {
+            await tx.inspection.update({
+              where: { id: target.submission.inspectionId },
+              data: { status: "COMPLETED", performedAt: new Date() },
+            });
+          }
+
+          const submission = await tx.formSubmission.update({
+            where: { id: target.submission.id },
+            data: { status: "SUBMITTED", signedAt: new Date() },
+            include: { version: true },
+          });
+
+          await tx.propertyHealthScore.upsert({
+            where: { propertyId: property.id },
+            update: { score: scoring.houseScore, explanation: healthExplanation },
+            create: { companyId: COMPANY_ID, propertyId: property.id, score: scoring.houseScore, explanation: healthExplanation },
+          });
+
+          const reportSummary = {
+            completedFields: entries.length,
+            activeFields: activeFieldCount(answers),
+            totalFields: rvmFieldCount,
+            sectionStatuses: sectionStatuses(answers),
+            scoringVersion: scoring.scoringVersion,
+            scoring: healthExplanation,
+            source: "RVM Husstatus-formulär",
+            ...(target.report ? { updatedExistingReport: true } : {}),
+          };
+          const report = target.report
+            ? await tx.houseReport.update({
+                where: { id: target.report.id },
+                data: {
+                  status: "READY_FOR_REVIEW",
+                  formVersion: submission.version.version,
+                  performedAt: new Date(),
+                  performedBy: typeof answers.rvm_signer === "string" ? answers.rvm_signer : null,
+                  reportOwner: typeof answers.report_owner_deadline === "string" ? answers.report_owner_deadline : null,
+                  nextControl: typeof answers.next_control === "string" ? answers.next_control : null,
+                  summary: reportSummary,
+                },
+              })
+            : await tx.houseReport.create({
+                data: {
+                  companyId: COMPANY_ID,
+                  propertyId: property.id,
+                  submissionId: submission.id,
+                  reportNo: reportNo!,
+                  status: "READY_FOR_REVIEW",
+                  formVersion: submission.version.version,
+                  reportVersion: 1,
+                  performedAt: new Date(),
+                  performedBy: typeof answers.rvm_signer === "string" ? answers.rvm_signer : null,
+                  reportOwner: typeof answers.report_owner_deadline === "string" ? answers.report_owner_deadline : null,
+                  nextControl: typeof answers.next_control === "string" ? answers.next_control : null,
+                  summary: reportSummary,
+                },
+              });
+
+          return { submission, report };
         });
+      } catch (error) {
+        if (!isReportNumberCollision(error) || attempt === 2) throw error;
+      }
+    }
+
+    if (!persisted) throw new Error("Kunde inte slutföra rapporten.");
+    const { submission, report } = persisted;
 
     let createdComponents = 0;
     if (isSectionActive(answers, 19)) {
