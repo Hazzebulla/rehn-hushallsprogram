@@ -1421,6 +1421,9 @@ export default function HusstatusFormView({
       ? "Sparar och öppnar förhandsgranskningen..."
       : "Sparar formuläret...";
   const section = sections.find((item) => item.id === activeSection) ?? sections[0];
+  const activeSectionIndex = Math.max(0, sections.findIndex((item) => item.id === section.id));
+  const previousSection = sections[activeSectionIndex - 1];
+  const nextSection = sections[activeSectionIndex + 1];
   const activeSectionStatus = sectionStatusFor(answers, section.id);
   const activeSectionIsNotApplicable = activeSectionStatus === "not_applicable";
   const selectedProperty = properties.find((property) => property.id === propertyId);
@@ -1735,6 +1738,13 @@ export default function HusstatusFormView({
     }, 80);
   }
 
+  function navigateToSection(sectionId: number) {
+    setActiveSection(sectionId);
+    window.setTimeout(() => {
+      document.querySelector(".formSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 40);
+  }
+
   function goToMissingImages() {
     const firstMissing = imageSummary.missingRequired[0] ?? imageSummary.missingRecommended[0];
     if (firstMissing) jumpToSection(25, firstMissing.id);
@@ -1953,7 +1963,12 @@ export default function HusstatusFormView({
             const itemIsActive = isSectionActive(answers, item.id);
             const sectionDone = item.fields.some((field) => hasValue(answers[field.key]));
             return (
-              <button className={`${item.id === activeSection ? "active" : ""} ${!itemIsActive ? "notApplicable" : ""}`} key={item.id} onClick={() => setActiveSection(item.id)}>
+              <button
+                className={`${item.id === activeSection ? "active" : ""} ${!itemIsActive ? "notApplicable" : ""}`}
+                key={item.id}
+                onClick={() => navigateToSection(item.id)}
+                type="button"
+              >
                 <b>{item.id}</b>
                 <span>{item.title}</span>
                 {!itemIsActive ? <em>Finns ej</em> : sectionDone && <i />}
@@ -2181,6 +2196,29 @@ export default function HusstatusFormView({
             ) : null}
             </>
           )}
+          <footer className="formSectionPager" aria-label="Navigera mellan formuläravsnitt">
+            <button
+              disabled={!previousSection}
+              onClick={() => previousSection && navigateToSection(previousSection.id)}
+              type="button"
+            >
+              <span aria-hidden="true">←</span>
+              <span><small>Föregående</small>{previousSection?.title ?? "Första avsnittet"}</span>
+            </button>
+            <div>
+              <span>Avsnitt {activeSectionIndex + 1} av {sections.length}</span>
+              <strong>{section.title}</strong>
+              <i aria-hidden="true"><span style={{ width: `${((activeSectionIndex + 1) / Math.max(sections.length, 1)) * 100}%` }} /></i>
+            </div>
+            <button
+              disabled={!nextSection}
+              onClick={() => nextSection && navigateToSection(nextSection.id)}
+              type="button"
+            >
+              <span><small>Nästa</small>{nextSection?.title ?? "Sista avsnittet"}</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </footer>
         </article>
       </section>
     </section>
